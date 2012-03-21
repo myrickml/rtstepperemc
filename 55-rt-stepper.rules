@@ -1,0 +1,12 @@
+# rt-stepper usb to parallel port udev rules
+
+ACTION!="add", GOTO="rt_rules_end"
+
+SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", SYSFS{idVendor}=="04d8", SYSFS{idProduct}=="ff45", MODE="0666"
+
+SUBSYSTEM=="usb_device", SYSFS{idVendor}=="04d8", SYSFS{idProduct}=="ff45", MODE="0666"
+
+# For /proc/bus/usb/bbb/ddd libusb devices (ie: Ubuntu 5.10 Breezy).
+SUBSYSTEM=="usb", SYSFS{idVendor}=="04d8", SYSFS{idProduct}=="ff45", RUN+="/bin/sh -c 'chmod 666 $env{DEVICE}'"
+
+LABEL="rt_rules_end"
