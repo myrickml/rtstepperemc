@@ -248,7 +248,7 @@ dmg:
 	@for i in $(dist_doc_DATA); do \
 	   $(INSTALL_DATA) $(srcdir)/$$i $(BUNDLE)/Contents/Resources/$(docdir); \
 	done
-	$(INSTALL) rt-test $(TESTBUNDLE)/Contents/MacOS
+	$(INSTALL) rt-test $(BUNDLE)/Contents/MacOS
 	$(INSTALL_SCRIPT) $(srcdir)/mini/mini.tcl $(BUNDLE)/Contents/MacOS/tkmini.tcl
 	$(INSTALL_SCRIPT) $(srcdir)/mini/emc.tcl $(BUNDLE)/Contents/MacOS
 	$(INSTALL_PROGRAM) $(srcdir)/rt-test $(BUNDLE)/Contents/MacOS
@@ -275,7 +275,7 @@ dmg:
 	   $(BUNDLE)/Contents/MacOS/lib/libiconv.2.dylib
 	install_name_tool -change $(libdir)/libusb-legacy/libusb-legacy-0.1.4.dylib \
 	   @loader_path/lib/libusb-legacy-0.1.4.dylib \
-	   $(TESTBUNDLE)/Contents/MacOS/rt-test
+	   $(BUNDLE)/Contents/MacOS/rt-test
 	echo "APPL????" >$(BUNDLE)/Contents/PkgInfo
 	echo \
 "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\

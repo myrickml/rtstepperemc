@@ -60,9 +60,10 @@
 # Version 1.7.51, des 03/05/12   DLLEXPORT in tcl 8.4 (Ubuntu 10.04) has problems, replaced with local DLL_EXPORT.  
 # Version 1.8, des 03/14/2012    First public release.
 # Version 1.8.1, des 03/18/2012  Fixed broken Mac application bundle. 
+# Version 1.8.2, des 03/22/2012  Fixed rt-test libusb link in Mac application bundle. 
 #
 
-AC_INIT([rtstepperemc], [1.8.1])
+AC_INIT([rtstepperemc], [1.8.2])
 AC_CANONICAL_HOST
 
 # Checks for programs.
