@@ -103,7 +103,7 @@ The tar ball will have built-in binary package support when used with <a href="h
 <p>
 Device permissions and user policies should be settable independently by administrators and distributions.
 <p>
-The dongle will have IO support for 8-bit output and 1-bit input. Both output and input are supported by the <i>rt-stepper</i> software.
+The dongle will have IO support for 8-bit output and 3-bit input. Both output and input are supported by the <i>rt-stepper</i> software.
 <p>
 The dongle 8-bit output will be reserved for 4 axis support. Initially no other spindle/tool control will be supported.
 <p>
@@ -226,6 +226,8 @@ Note, all step/direction signals are "active low". Your CNC controller MUST be b
 <pre>
 [TASK]
 INPUT0_ABORT = 0
+INPUT1_ABORT = 0
+INPUT2_ABORT = 0
 </pre>
 The "INPUT0_ABORT" sets the INPUT0 abort option. INPUT0 signal is hard wired to the DB25 connector pin 10. This signal can be used for limit switches. 
 See the <a href="#switches">Limit Switches</a> section for wiring details.
@@ -233,6 +235,8 @@ See the <a href="#switches">Limit Switches</a> section for wiring details.
 When "INPUT0_ABORT=0" the INPUT0 signal is ignored. This is the default.
 <p>
 When "INPUT0_ABORT=1" an "active high" transition on the INPUT0 pin will cause a un-synchronized estop.
+<p>
+INPUT1 and INPUT2 function the same as INPUT0. INPUT1 signal is hard wired to DB25 connector pin 11. INPUT2 signal is hard wired to DB25 connector pin 12.
 
 <H2><a name="screens"></a>7 Screens</H2>
 <center>
@@ -542,8 +546,9 @@ When tuning is complete you are ready to start cutting parts.
 <H2><a name="switches"></a>15 Limit Switches</H2>
 Depending on the CNC system limit switches are optional. If exceeding the XYZ physical limits can cause physical damage to your CNC system then limit switches are NOT optional.
 <p>
-The current <i>rt-stepper</i> dongle supports one "active high" input signal called INPUT0. 
-INPUT0 signal is hard wired to the DB25 connector pin 10. This signal can be used for limit switches. 
+The <i>rt-stepper</i> dongle supports three "active high" input signals called INPUT0, INPUT1 and INPUT2. 
+Although any of the three input signals can be used for limit switches, the following example uses INPUT0.  
+INPUT0 signal is hard wired to the DB25 connector pin 10. 
 Multiple switches must be wired in series as normally closed switches connected to CNC ground.
 <center>
 <img src="home_switch.png">
@@ -583,14 +588,14 @@ VID: 0x04d8<br>
 PID: 0xff45<br> 
 Power: Bus Power Only (~5v)<br>
 Indicators: Power<br>
-Overall Dimensions: 2.5 in.(L) x 2.35 in.(W) x 0.95 in.(H)<br>
+Overall Dimensions: 2.6 in.(L) x 2.35 in.(W) x 0.95 in.(H)<br>
 Weight: 2.3 oz.
 <hr>
 <font size=2>
 <center>
 &#169 2009-2012 Eckler Software<br>
 <IMG SRC="sig.png"><br>
-Last updated March 4, 2012
+Last updated April 11, 2012
 </center>
 </font>
 </font>
