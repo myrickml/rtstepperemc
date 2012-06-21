@@ -863,6 +863,28 @@ int emcAxisSetDirectionPin(int axis, int pin)
    return emcmotWriteCommand(&emcmotCommand);
 }       /* emcAxisSetStepPin() */
 
+int emcAxisSetStepPolarity(int axis, int polarity)
+{
+   DBG("emcAxisSetStepPolarity() axis=%d pin=%d\n", axis, pin);
+   if (polarity < 0 || polarity > 1)
+      polarity = 0;
+   emcmotCommand.command = EMCMOT_SET_STEP_POLARITY;
+   emcmotCommand.axis = axis;
+   emcmotCommand.polarity = polarity;
+   return emcmotWriteCommand(&emcmotCommand);
+}       /* emcAxisSetStepPolarity() */
+
+int emcAxisSetDirectionPolarity(int axis, int polarity)
+{
+   DBG("emcAxisSetDirectionPolarity() axis=%d pin=%d\n", axis, pin);
+   if (polarity < 0 || polarity > 1)
+      polarity = 0;
+   emcmotCommand.command = EMCMOT_SET_DIRECTION_POLARITY;
+   emcmotCommand.axis = axis;
+   emcmotCommand.polarity = polarity;
+   return emcmotWriteCommand(&emcmotCommand);
+}       /* emcAxisSetDirectionPolarity() */
+
 int emcAxisSetAxis(int axis, unsigned char axisType)
 {
    if (axis < 0 || axis >= EMCMOT_MAX_JOINTS)

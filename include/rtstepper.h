@@ -61,6 +61,8 @@ struct rtstepper_app_session
    char snum[LINELEN];          /* dongle serial number */
    int step_pin[EMCMOT_MAX_AXIS];       /* DB25 pin number */
    int direction_pin[EMCMOT_MAX_AXIS];  /* DB25 pin number */
+   int step_active_high[EMCMOT_MAX_AXIS];       /* DB25 pin polarity */
+   int direction_active_high[EMCMOT_MAX_AXIS];  /* DB25 pin polarity */
    int id;                      /* gcode line number */
    int master_index[EMCMOT_MAX_AXIS];   /* running position in step counts */
    int clk_tail[EMCMOT_MAX_AXIS];       /* used calculate number cycles between pulses */

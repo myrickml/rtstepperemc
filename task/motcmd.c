@@ -963,6 +963,14 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          emcmot_config_change();
          ps->dongle.direction_pin[joint_num] = emcmotCommand->pin;
          break;
+      case EMCMOT_SET_STEP_POLARITY:
+         emcmot_config_change();
+         ps->dongle.step_active_high[joint_num] = emcmotCommand->polarity;
+         break;
+      case EMCMOT_SET_DIRECTION_POLARITY:
+         emcmot_config_change();
+         ps->dongle.direction_active_high[joint_num] = emcmotCommand->polarity;
+         break;
 
       case EMCMOT_SET_JOINT_VEL_LIMIT:
          emcmot_config_change();

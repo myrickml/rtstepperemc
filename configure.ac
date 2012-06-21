@@ -61,9 +61,11 @@
 # Version 1.8, des 03/14/2012    First public release.
 # Version 1.8.1, des 03/18/2012  Fixed broken Mac application bundle. 
 # Version 1.8.2, des 03/22/2012  Fixed rt-test libusb link in Mac application bundle. 
+# Version 1.8.3, des 06/18/2012  First cut at adding support for high_true step/direction logic. Previous support was low_true. 
+# Version 1.8.5, des 06/20/2012  Good release for high_true step/direction logic.
 #
 
-AC_INIT([rtstepperemc], [1.8.2])
+AC_INIT([rtstepperemc], [1.8.5])
 AC_CANONICAL_HOST
 
 # Checks for programs.

@@ -192,6 +192,8 @@ extern "C"
    int emcAxisSetInputScale(int axis, double scale);
    int emcAxisSetStepPin(int axis, int pin);
    int emcAxisSetDirectionPin(int axis, int pin);
+   int emcAxisSetStepPolarity(int axis, int polarity);
+   int emcAxisSetDirectionPolarity(int axis, int polarity);
    int emcAxisInit(int axis);
    int emcAxisHalt(int axis);
    int emcAxisAbort(int axis);

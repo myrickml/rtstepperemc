@@ -195,7 +195,7 @@ install_rtstepperemc.dll:
 #
 # Uninstall
 #
-uninstall: uninstall_rtstepperemc$(DLL_EXTENSION)
+uninstall: uninstall_rtstepperemc.$(DLL_EXTENSION)
 
 # Uninstall program ?
 uninstall_rtstepperemc.so:

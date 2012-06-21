@@ -1011,6 +1011,22 @@ static int loadAxis(int axis, EmcIniFile * axisIniFile)
          BUG("bad return from emcAxisSetDirectionPin\n");
          return retval;
       }
+
+      // set step pen polarity
+      axisIniFile->Find(&pin, "STEP_ACTIVE_HIGH", axisString);
+      if ((retval = emcAxisSetStepPolarity(axis, pin)) != EMC_R_OK)
+      {
+         BUG("bad return from emcAxisSetStepPolarity\n");
+         return retval;
+      }
+
+      // set direction pin polarity
+      axisIniFile->Find(&pin, "DIRECTION_ACTIVE_HIGH", axisString);
+      if ((retval = emcAxisSetDirectionPolarity(axis, pin)) != EMC_R_OK)
+      {
+         BUG("bad return from emcAxisSetDirectionPolarity\n");
+         return retval;
+      }
    }
 
    catch(EmcIniFile::Exception & e)
