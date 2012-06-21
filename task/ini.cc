@@ -1013,6 +1013,7 @@ static int loadAxis(int axis, EmcIniFile * axisIniFile)
       }
 
       // set step pen polarity
+      pin = 0;
       axisIniFile->Find(&pin, "STEP_ACTIVE_HIGH", axisString);
       if ((retval = emcAxisSetStepPolarity(axis, pin)) != EMC_R_OK)
       {
@@ -1021,6 +1022,7 @@ static int loadAxis(int axis, EmcIniFile * axisIniFile)
       }
 
       // set direction pin polarity
+      pin = 0;
       axisIniFile->Find(&pin, "DIRECTION_ACTIVE_HIGH", axisString);
       if ((retval = emcAxisSetDirectionPolarity(axis, pin)) != EMC_R_OK)
       {
