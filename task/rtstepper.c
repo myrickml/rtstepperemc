@@ -383,7 +383,12 @@ enum RTSTEPPER_RESULT rtstepper_start_xfr(struct rtstepper_app_session *ps, int 
          /* Stretch pulse to 50% duty cycle. */
          mid = (ps->total - ps->clk_tail[axis]) / 2;
          for (i = 0; i < mid; i++)
-            ps->buf[ps->clk_tail[axis] + i] &= ~pin_map[ps->step_pin[axis]];    /* set bit */
+         {
+            if (ps->step_active_high[axis])
+               ps->buf[ps->clk_tail[axis] + i] |= pin_map[ps->step_pin[axis]]; /* set bit */
+            else
+               ps->buf[ps->clk_tail[axis] + i] &= ~pin_map[ps->step_pin[axis]]; /* set bit */
+         }
       }
    }
 
@@ -451,25 +456,39 @@ enum RTSTEPPER_RESULT rtstepper_encode(struct rtstepper_app_session *ps, int id,
       /* Set step bit to default state, high if low_true logic or low if high_true logic. */
       if (ps->step_active_high[axis])
       {
-         ps->buf[ps->total] &= ~pin_map[ps->step_pin[axis]];
-         ps->buf[ps->total + 1] &= ~pin_map[ps->step_pin[axis]];
+         /* If step_pen[n] == 0 then the axis is unused. Useful for XYZABC axes where AB are unused. */
+         if (ps->step_pin[axis])
+         {
+            ps->buf[ps->total] &= ~pin_map[ps->step_pin[axis]];
+            ps->buf[ps->total + 1] &= ~pin_map[ps->step_pin[axis]];
+         }
       }
       else
       {
-         ps->buf[ps->total] |= pin_map[ps->step_pin[axis]];
-         ps->buf[ps->total + 1] |= pin_map[ps->step_pin[axis]];
+         if (ps->step_pin[axis])
+         {
+            ps->buf[ps->total] |= pin_map[ps->step_pin[axis]];
+            ps->buf[ps->total + 1] |= pin_map[ps->step_pin[axis]];
+         }
       }
 
       /* Set direction bit to default state, high if low_true logic or low if high_true logic. */
       if (ps->direction_active_high[axis])
       {
-         ps->buf[ps->total] &= ~pin_map[ps->direction_pin[axis]];
-         ps->buf[ps->total + 1] &= ~pin_map[ps->direction_pin[axis]];
+         /* If direction_pen[n] == 0 then the axis is unused. Useful for XYZABC axes where AB are unused. */
+         if (ps->direction_pin[axis])
+         {
+            ps->buf[ps->total] &= ~pin_map[ps->direction_pin[axis]];
+            ps->buf[ps->total + 1] &= ~pin_map[ps->direction_pin[axis]];
+         }
       }
       else
       {
-         ps->buf[ps->total] |= pin_map[ps->direction_pin[axis]];
-         ps->buf[ps->total + 1] |= pin_map[ps->direction_pin[axis]];
+         if (ps->direction_pin[axis])
+         {
+            ps->buf[ps->total] |= pin_map[ps->direction_pin[axis]];
+            ps->buf[ps->total + 1] |= pin_map[ps->direction_pin[axis]];
+         }
       }
 
       /* Calculate the step pulse for this clock cycle */
@@ -522,8 +541,7 @@ enum RTSTEPPER_RESULT rtstepper_encode(struct rtstepper_app_session *ps, int id,
 
       ps->master_index[axis] += step;
 
-//      DBG("axis=%d index=%0.6f d_index=%0.6f master_index=%d\n", i, index[i] * ps->steps_per_unit[i], 
-//           d_index[i], ps->master_index[i]);
+//      DBG("axis=%d index=%0.6f master_index=%d\n", axis, index[axis] * ps->steps_per_unit[axis], ps->master_index[axis]);
    }    /* for (axis=0; axis < num_axis; axis++) */
 
    ps->total += 2;

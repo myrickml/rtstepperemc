@@ -865,7 +865,7 @@ int emcAxisSetDirectionPin(int axis, int pin)
 
 int emcAxisSetStepPolarity(int axis, int polarity)
 {
-   DBG("emcAxisSetStepPolarity() axis=%d pin=%d\n", axis, pin);
+   DBG("emcAxisSetStepPolarity() axis=%d polarity=%d\n", axis, polarity);
    if (polarity < 0 || polarity > 1)
       polarity = 0;
    emcmotCommand.command = EMCMOT_SET_STEP_POLARITY;
@@ -876,7 +876,7 @@ int emcAxisSetStepPolarity(int axis, int polarity)
 
 int emcAxisSetDirectionPolarity(int axis, int polarity)
 {
-   DBG("emcAxisSetDirectionPolarity() axis=%d pin=%d\n", axis, pin);
+   DBG("emcAxisSetDirectionPolarity() axis=%d polarity=%d\n", axis, polarity);
    if (polarity < 0 || polarity > 1)
       polarity = 0;
    emcmotCommand.command = EMCMOT_SET_DIRECTION_POLARITY;

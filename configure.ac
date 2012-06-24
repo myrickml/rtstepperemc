@@ -63,9 +63,10 @@
 # Version 1.8.2, des 03/22/2012  Fixed rt-test libusb link in Mac application bundle. 
 # Version 1.8.3, des 06/18/2012  First cut at adding support for high_true step/direction logic. Previous support was low_true. 
 # Version 1.8.5, des 06/20/2012  Good release for high_true step/direction logic.
+# Version 1.8.6, des 06/23/2012  Fine tuned rtstepper.ini file for "A" axis (angular). Increased acceleration & velocity profile.
 #
 
-AC_INIT([rtstepperemc], [1.8.5])
+AC_INIT([rtstepperemc], [1.8.7])
 AC_CANONICAL_HOST
 
 # Checks for programs.
