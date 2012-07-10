@@ -308,6 +308,11 @@ static void readahead_reading(void)
             {
                /* Signal to the rest of the system that that the interp is now in a paused state. */
                emcStatus->task.interpState = EMC_TASK_INTERP_WAITING;
+               if (readRetval > INTERP_MIN_ERROR)
+               {
+                  interp_list.clear();
+                  break;   /* IO error, abort interpret */
+               }
             }
             else
             {
@@ -1517,8 +1522,8 @@ int emcTrajDisable()
 
 int emcTrajLinearMove(EmcPose end, int type, double vel, double ini_maxvel, double acc)
 {
-   DBG("emcTrajLinearMove() type=%d x=%0.6f y=%0.6f z=%0.6f vel=%0.6f ini_maxvel=%0.6f acc=%0.6f\n", type,
-       end.tran.x, end.tran.y, end.tran.z, vel, ini_maxvel, acc);
+   DBG("emcTrajLinearMove() type=%d x=%0.6f y=%0.6f z=%0.6f a=%0.6f c=%0.6f vel=%0.6f ini_maxvel=%0.6f acc=%0.6f\n", type,
+       end.tran.x, end.tran.y, end.tran.z, end.a, end.c, vel, ini_maxvel, acc);
 
    if (isnan(end.tran.x) || isnan(end.tran.y) || isnan(end.tran.z) ||
        isnan(end.a) || isnan(end.b) || isnan(end.c) || isnan(end.u) || isnan(end.v) || isnan(end.w))

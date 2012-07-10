@@ -35,8 +35,10 @@
 <li><a href="#support">10 OS Support</a>
 <li><a href="#build">11 Software Installation</a>
 <ul>
-<li><a href="#binary">11.1 Binary Install</a>
-<li><a href="#source">11.2 Source Code Install</a>
+<li><a href="#binaryWin">11.1 Windows Install</a>
+<li><a href="#binaryLinux">11.2 Linux Install</a>
+<li><a href="#binaryMac">11.3 Mac OSX Install</a>
+<li><a href="#source">11.4 Source Code Install</a>
 </ul>
 <li><a href="#power">12 Power Up</a>
 <li><a href="#test">13 Testing</a>
@@ -179,10 +181,15 @@ Sets the title in the UI application. Useful for identifying what ini file is lo
 <pre>
 [TRAJ]
 DEFAULT_VELOCITY =      0.2
-DEFAULT_ANGULAR_VELOCITY =      0.2
+MAX_VELOCITY =         400
+DEFAULT_ACCELERATION =  200
+MAX_ACCELERATION =      400
 </pre>
 
-Sets the trajectory default max velocity in engineering units. In the above example this would be 0.2 inches/second or 12 inches/minute (12 = 0.2 * 60). 
+Sets the trajectory planner default velocity and acceleration in engineering units. 
+In the above example this would be 0.2 inches/second or 12 inches/minute (12 = 0.2 * 60).
+This sets the trajectory planner overall acceleration and velocity then each axis can be fine tuned individually in
+the AXIS section.
 
 <H3><a name="axis_section"></a>6.3 AXIS section</H3>
 <pre>
@@ -192,6 +199,8 @@ BACKLASH = 0.0
 INPUT_SCALE = 32000
 STEP_PIN = 2
 DIRECTION_PIN = 3
+STEP_ACTIVE_HIGH = 0
+DIRECTION_ACTIVE_HIGH = 0
 </pre>
 
 There is a AXIS section for each axis (AXIS_0 - AXIS_3). 
@@ -214,12 +223,17 @@ Since the Xylotex CNC controller board is set to 1/8 stepping.
 4000 * 8 = 32000 steps/inch = INPUT_SCALE
 </pre>
 <p>
-STEP_PIN specifies the step pin on the DB25 connector for this axis. 
+STEP_PIN specifies the step pin on the DB25 connector for this axis.
 <p>
 DIRECTION_PIN specifies the direction pin on the DB25 connector for this axis.
 <p>
-The default values for step/direction pins will work for many commercial boards.  
-Note, all step/direction signals are "active low". Your CNC controller MUST be built this way, most commercial boards are.
+STEP_ACTIVE_HIGH specifies the polarity of the step signal (0 = active_low, 1 = active_high).
+<p>
+DIRECTION_ACTIVE_HIGH specifies the polarity of the direction signal (0 = active_low, 1 = active_high).
+<p>
+The default values for step/direction pins will work for many commercial CNC controller boards. 
+Note, DB25 connector pins 2, 3, 4, 5, 6, 7, 8 and 9 are reserved for step/direction signals, 2 signals per axis, 4 axis total. 
+Your CNC controller MUST be built to use these pins, most commercial boards are. 
 <p>
 
 <H3><a name="task_section"></a>6.6 TASK section</H3>
@@ -296,41 +310,102 @@ All though not a complete list the following OSs have be tested.
 <H2><a name="build"></a>11 Software Installation</H2>
 The best way to install the <i>rt-stepper</i> software is with a pre-build binary package. Pre-build binary packages are available at  <a href="http://www.ecklersoft.com/download.shtml">www.ecklersoft.com/download</a>. Installing from source code is an option, but should only be attempted by an experienced programmer or administrator.
 
-<H3><a name="binary"></a>11.1 Binary Install</a></H3>
-All binary packages have very few dependecies. 
 <p>
-<b> 
-For Windows use the following steps to install <i>rt-stepper</i>. The instructions have been tested on Windows XP and Windows 7.  
-</b>
+<H3><a name="binaryWin"></a>11.1 Windows Install</a></H3>
+For Windows use the following steps to install <i>rt-stepper</i>. The instructions have been tested on Windows XP. Instructions for Windows 7 would be similar.  
 <ol>
 <li> Download and install the latest 32-bit ActiveTcl for Windows (ie: ActiveTcl 8.5.9.2 or higher) at www.activestate.com.
 </li>
-<li> Download the latest rtstepperemc_win32 zip file from <a href="http://www.ecklersoft.com/download.shtml">www.ecklersoft.com/download</a>.
+<li> Download the latest rtstepperemc_win32 zip file from <a href="http://www.ecklersoft.com/download.shtml">www.ecklersoft.com/download</a>. The following 
+screen shot shows the zip file stored in the top directory of your C: drive.
+
+<center>
+<img src="zip_download.png">
+</center>
+<p>
 </li>
-<li> Unzip rtstepperemc_win32 into a directory of your choice.
+<li> Unzip rtstepperemc_win32 by right clicking on the zip file, then click on "Extract All...".
+<center>
+<img src="extract.png">
+</center>
+<p>
+</li>
+</li>
+<li> With the Extraction Wizard click the Next button.
+<center>
+<img src="wizard1.png">
+</center>
+<p>
+</li>
+<li> Using the default destination directory click on the Next button.
+<center>
+<img src="wizard2.png">
+</center>
+<p>
+</li>
+<li> After the extraction is complete, you can un-click "Show extracted files", then click Finish.
+<center>
+<img src="wizard3.png">
+</center>
+<p>
 </li>
 <li> At this point you should be able to run "tkmini.tcl" by double clicking on it. This should start TkMini application.
+<center>
+<img src="unziped.png">
+</center>
+<p>
 </li>
-<li> With no dongle plugged in, TkMini should have displayed the message "unable to connect to the rt-stepper dongle". You can go ahead and exit out of TkMini for now. This should close both windows.
+<li> With no dongle plugged in, TkMini should have displayed the message "unable to connect to the rt-stepper dongle".
+You can go ahead and exit out of TkMini for now. 
+<center>
+<img src="unpluged.png">
+</center>
 </li>
-<li> Now it is time to install the rt-stepper USB driver.
+<p>
+<li>
+Now it is time to install the rt-stepper USB driver. Plug-in a USB cable from the PC to the rt-stepper dongle. 
+This should pop up the "Found New Hardware Wizard".
+We want to manually select our own driver so select "No, not this time", then click Next. 
+<center>
+<img src="new_hardware.png">
+</center>
+<p>
 </li>
-<li> Plug-in a USB cable from the PC to the rt-stepper dongle.
+<li>Select "Install from a list or specific location", the click Next.
+<center>
+<img src="new_hardware2.png">
+</center>
+<p>
 </li>
-<li> When Windows asks for a new hardware driver, manually choose the "rt-stepper.inf" file. Ignore any not "digitally signed" messages and continue with the installation.
+<li>Make the selections as shown in the following screen shot, using the Browse button select the directory you created after unziping the zip file in step 7. In the example the directory was "c:\rtstepperemc_win32-1.8-0\rtstepperemc_win32-1.8-0". Now click Next.
+<center>
+<img src="new_hardware3.png">
+</center>
+<p>
+</li>
+<li>Ignore the following "not passed Windows Logo testing" message and continue with the installation by clicking Continue Anyway.
+<center>
+<img src="new_hardware4.png">
+</center>
+<p>
+</li>
+<li>Once the driver is installed you should get the following completion dialog, click the Finish button.
+<center>
+<img src="new_hardware6.png">
+</center>
+<p>
 </li>
 <li> Disable any power save options that will cause the PC to shutdown during CNC operation.
 </li>
-<li> Now you can run "tkmini.tcl" and there should be no "unable to connect to the rt-stepper dongle" message.
+<li> Now you can re-run step 7 and there should now be no "unable to connect to the rt-stepper dongle" message.
 </li>
 <li> You are now ready to proceed with the <a href="#power">Power Up</a> section.
 </li>
 </ol>
 
 <p>
-<b>
+<H3><a name="binaryLinux"></a>11.2 Linux Install</a></H3>
 For Linux use the following instructions to install <i>rt-stepper</i>. The instructions have been tested on Fedora and Ubuntu.
-</b>
 <ol>
 <li> Download the latest <i>rt-stepper</i> rpm or deb package from <a href="http://www.ecklersoft.com/download.shtml">www.ecklersoft.com/download</a>.
 </li>
@@ -357,9 +432,8 @@ dpkg -i rtstepperemc-1.7.1-0-x86_32.deb
 </li>
 </ol>
 
-<b>
+<H3><a name="binaryMac"></a>11.3 Mac OSX Install</a></H3>
 For Mac OSX use the following instructions to install <i>rt-stepper</i>. The instructions have been tested on OSX 10.6.
-</b>
 <ol>
 <li> Download the latest <i>rt-stepper</i> dmg disk image from <a href="http://www.ecklersoft.com/download.shtml">www.ecklersoft.com/download</a>. Note the disk image software version number will be the same or higher.
 </li>
@@ -382,7 +456,7 @@ For Mac OSX use the following instructions to install <i>rt-stepper</i>. The ins
 </li>
 </ol>
 
-<H3><a name="source"></a>11.2 Source Code Install</a></H3>
+<H3><a name="source"></a>11.4 Source Code Install</a></H3>
 
 Use this section as a reference for building and installing <i>rt-stepper</i> from source code. WARNING the instructions are not complete and vary by OS and release. 
 There are many build time dependencies. Even an experienced programmer will find building from source code very frustrating.
@@ -549,7 +623,7 @@ Depending on the CNC system limit switches are optional. If exceeding the XYZ ph
 The <i>rt-stepper</i> dongle supports three "active high" input signals called INPUT0, INPUT1 and INPUT2. 
 Although any of the three input signals can be used for limit switches, the following example uses INPUT0.  
 INPUT0 signal is hard wired to the DB25 connector pin 10. 
-Multiple switches must be wired in series as normally closed switches connected to CNC ground.
+Multiple switches are wired in series as normally closed switches connected to CNC ground.
 <center>
 <img src="home_switch.png">
 </center>
@@ -595,7 +669,7 @@ Weight: 2.3 oz.
 <center>
 &#169 2009-2012 Eckler Software<br>
 <IMG SRC="sig.png"><br>
-Last updated April 11, 2012
+Last updated June 24, 2012
 </center>
 </font>
 </font>

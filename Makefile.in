@@ -72,7 +72,9 @@ DEFS += -DLINELEN=255 \
 -DEMC2_TASKNAME=\"milltask\" -DEMC2_DEFAULT_INIFILE=\"$(emcconfdir)/rtstepper.ini\"
 
 dist_doc_DATA = \
-COPYING ers.html dongle.jpg mini_linux.png mini_xp_full.png sig.png home_switch.png mini_osx_full.png bundle.png
+COPYING ers.html dongle.jpg mini_linux.png mini_xp_full.png sig.png home_switch.png mini_osx_full.png bundle.png \
+zip_download.png extract.png wizard1.png wizard2.png wizard3.png unziped.png unpluged.png new_hardware.png \
+new_hardware2.png new_hardware3.png new_hardware4.png new_hardware6.png
 
 dist_noinst_SCRIPTS = \
 bootstrap configure.ac config.guess install-sh configure config.sub create-dmg template.applescript

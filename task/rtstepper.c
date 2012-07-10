@@ -372,8 +372,8 @@ enum RTSTEPPER_RESULT rtstepper_start_xfr(struct rtstepper_app_session *ps, int 
    if (ps->total == 0 || !rtstepper_is_xfr_done(ps, &ret))
       return RTSTEPPER_R_OK;
 
-   DBG("start_xfr: x_index=%d y_index=%d z_index=%d a_index=%d buf=%p cnt=%d\n", ps->master_index[0],
-       ps->master_index[1], ps->master_index[2], ps->master_index[3], ps->buf, ps->total);
+   DBG("start_xfr: x_index=%d y_index=%d z_index=%d a_index=%d c_index=%d buf=%p cnt=%d\n", ps->master_index[0],
+       ps->master_index[1], ps->master_index[2], ps->master_index[3], ps->master_index[5], ps->buf, ps->total);
 
    /* Finish last pulse for this step buffer. */
    for (axis = 0; axis < num_axis; axis++)
@@ -527,7 +527,7 @@ enum RTSTEPPER_RESULT rtstepper_encode(struct rtstepper_app_session *ps, int id,
       /* Set direction bit. */
       if (ps->direction[axis] < 0)
       {
-         if (ps->step_active_high[axis])
+         if (ps->direction_active_high[axis])
          {
             ps->buf[ps->total] |= pin_map[ps->direction_pin[axis]];    /* set bit */
             ps->buf[ps->total + 1] |= pin_map[ps->direction_pin[axis]];  /* set bit */
