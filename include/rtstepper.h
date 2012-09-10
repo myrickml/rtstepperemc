@@ -51,6 +51,8 @@ enum RTSTEPPER_RESULT
    RTSTEPPER_R_INPUT2_TRUE = 3,
 };
 
+typedef int (*rtstepper_io_error_cb)(int result);
+
 struct rtstepper_app_session
 {
    uint16_t state_bits;         /* dongle state bits */
@@ -68,14 +70,18 @@ struct rtstepper_app_session
    int clk_tail[EMCMOT_MAX_AXIS];       /* used calculate number cycles between pulses */
    int direction[EMCMOT_MAX_AXIS];      /* cycle time step direction */
    double steps_per_unit[EMCMOT_MAX_AXIS];      /* INPUT_SCALE */
-   unsigned char *buf;          /* step/direction buffer */
-   int buf_size;                /* max buffer size */
-   int total;                   /* current buffer count */
+   unsigned char *buf;          /* staging step/direction buffer */
+   int buf_size;                /* staging buffer size */
+   int total;                   /* staging current buffer count */
+   unsigned char *xfr_buf;     /* step/direction buffer */
+   int xfr_total;           /* buffer count */
    int xfr_active;              /* 0=no, 1=yes */
-   int write_return;            /* bulk_write_thread return value */
    struct usb_device *libusb_device;    /* selected usb device */
    int usbfd;                   /* usb file descriptor */
    pthread_t bulk_write_tid;    /* thread handle */
+   pthread_mutex_t mutex;
+   pthread_cond_t write_done_cond;
+   rtstepper_io_error_cb error_function;   /* client callback function */
 };
 
 #define RTSTEPPER_STEP_STATE_ABORT_BIT 0x01     /* active high, 1=yes, 0=no */
@@ -94,7 +100,7 @@ extern "C"
 
 /* Function prototypes */
 
-   enum RTSTEPPER_RESULT rtstepper_init(struct rtstepper_app_session *ps);
+   enum RTSTEPPER_RESULT rtstepper_init(struct rtstepper_app_session *ps, rtstepper_io_error_cb error_function);
    enum RTSTEPPER_RESULT rtstepper_exit(struct rtstepper_app_session *ps);
    enum RTSTEPPER_RESULT rtstepper_query_state(struct rtstepper_app_session *ps);
    enum RTSTEPPER_RESULT rtstepper_clear_abort(struct rtstepper_app_session *ps);
@@ -102,8 +108,8 @@ extern "C"
    enum RTSTEPPER_RESULT rtstepper_set_abort_wait(struct rtstepper_app_session *ps);
    enum RTSTEPPER_RESULT rtstepper_encode(struct rtstepper_app_session *ps, int id, double *index, int num_axis);
    enum RTSTEPPER_RESULT rtstepper_start_xfr(struct rtstepper_app_session *ps, int id, int num_axis);
-   enum RTSTEPPER_RESULT rtstepper_clear_xfr_result(struct rtstepper_app_session *ps);
-   int rtstepper_is_xfr_done(struct rtstepper_app_session *ps, int *result);
+//   enum RTSTEPPER_RESULT rtstepper_clear_xfr_result(struct rtstepper_app_session *ps);
+//    int rtstepper_is_xfr_done(struct rtstepper_app_session *ps, int *result);
    int rtstepper_is_connected(struct rtstepper_app_session *ps);
    enum RTSTEPPER_RESULT rtstepper_is_input0_triggered(struct rtstepper_app_session *ps);
    enum RTSTEPPER_RESULT rtstepper_is_input1_triggered(struct rtstepper_app_session *ps);

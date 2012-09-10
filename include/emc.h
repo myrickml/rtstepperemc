@@ -33,6 +33,9 @@ struct emc_session
    pthread_mutex_t mutex;
    pthread_cond_t event_cond;
    pthread_cond_t control_thread_done_cond;
+   pthread_cond_t control_cycle_thread_done_cond;
+   int control_cycle_thread_active;
+   pthread_t control_cycle_thread_tid;
    struct rtstepper_app_session dongle;
    struct _emc_msg_t head;
 };
@@ -178,6 +181,7 @@ extern "C"
    int emcOperatorError(int id, const char *fmt, ...);
    int emcOperatorText(int id, const char *fmt, ...);
    int emcOperatorDisplay(int id, const char *fmt, ...);
+   int emc_io_error_cb(int result);
 
    int emcAxisSetBacklash(int axis, double backlash);
    int emcAxisSetMinPositionLimit(int axis, double limit);

@@ -1276,7 +1276,7 @@ void control_thread(struct emc_session *ps)
    enum RTSTEPPER_RESULT ret;
    unsigned int last = 0;
    int taskPlanError, taskExecuteError;
-   int lock = 0, result, done;
+   int lock = 0, done;
    const char tag[] = "ctl";
 
    pthread_detach(pthread_self());
@@ -1310,17 +1310,6 @@ void control_thread(struct emc_session *ps)
 
       if (ret == RTSTEPPER_R_REQ_ERROR)
          esleep(0.01);  /* No dongle connected, let other processes have cpu time */
-
-      /* Force estop if rtstepper write error. */
-      if (rtstepper_is_xfr_done(&ps->dongle, &result))
-      {
-         if (result < 0)
-         {
-            BUG("USB data write error=%d estop...\n", result);
-            emcOperatorError(0, EMC_I18N("USB data write error=%d ESTOP..."), result);
-            emcTaskSetState(EMC_TASK_STATE_ESTOP);
-         }
-      }
 
       done = 0;
       while (!done)
@@ -1365,26 +1354,6 @@ void control_thread(struct emc_session *ps)
       emcIoUpdate(&emcStatus->io);
       emcMotionUpdate(&emcStatus->motion);
 
-      // synchronize subordinate states
-      if (emcStatus->io.aux.estop)
-      {
-         if (emcStatus->motion.traj.enabled)
-         {
-            emcTrajDisable();
-            emcTaskAbort();
-            emcIoAbort();
-            emcAxisUnhome(-2);  // only those joints which are volatile_home
-         }
-         if (emcStatus->io.coolant.mist)
-            emcCoolantMistOff();
-         if (emcStatus->io.coolant.flood)
-            emcCoolantFloodOff();
-         if (emcStatus->io.lube.on)
-            emcLubeOff();
-         if (emcStatus->motion.spindle.enabled)
-            emcSpindleOff();
-      }
-
       // check for subordinate errors, and halt task if so
       if (emcStatus->motion.status == RCS_ERROR || emcStatus->io.status == RCS_ERROR)
       {
@@ -1410,10 +1379,10 @@ void control_thread(struct emc_session *ps)
 
       if (emcCommand)
       {
-         // do task
+         // get task status
          emcStatus->task.command_type = emcCommand->msg.type;
          emcStatus->task.echo_serial_number = emcCommand->msg.serial_number;
-         // do top level
+         // get top level status
          emcStatus->command_type = emcCommand->msg.type;
          emcStatus->echo_serial_number = emcCommand->msg.serial_number;
       }
@@ -1486,6 +1455,7 @@ enum EMC_RESULT emc_ui_init(const char *ini_file)
 
    pthread_mutex_init(&ps->mutex, NULL);
    pthread_cond_init(&ps->control_thread_done_cond, NULL);
+   pthread_cond_init(&ps->control_cycle_thread_done_cond, NULL);
    INIT_LIST_HEAD(&ps->head.list);
 
    if ((hdir = getenv("HOME")) == NULL)
@@ -1550,7 +1520,7 @@ enum EMC_RESULT emc_ui_init(const char *ini_file)
       goto bugout;
    }
 
-   if (rtstepper_init(&ps->dongle) != RTSTEPPER_R_OK)
+   if (rtstepper_init(&ps->dongle, emc_io_error_cb) != RTSTEPPER_R_OK)
       emcOperatorError(0, EMC_I18N("unable to connnect to rt-stepper dongle"));
 
    emcTaskUpdate(&emcStatus->task);
@@ -1590,6 +1560,7 @@ enum EMC_RESULT emc_ui_exit(void)
    rtstepper_exit(&ps->dongle);
    pthread_mutex_destroy(&ps->mutex);
    pthread_cond_destroy(&ps->control_thread_done_cond);
+   pthread_cond_destroy(&ps->control_cycle_thread_done_cond);
 
    return EMC_R_OK;
 }       /* emc_ui_exit() */

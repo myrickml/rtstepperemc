@@ -1858,10 +1858,12 @@ static void output_pos_cmds(void)
    {
       rtstepper_encode(&ps->dongle, tpGetExecId(&emcmotDebug.queue), sm_pos, emcmotStatus.traj.axes);
    }
+#if 0
    else
    {
       rtstepper_start_xfr(&ps->dongle, tpGetExecId(&emcmotDebug.queue), emcmotStatus.traj.axes);
    }
+#endif
 }       /* output_pos_cmds() */
 
 static void update_status(void)
@@ -1907,10 +1909,10 @@ static void update_status(void)
    }
 #endif
 
-   /* motion emcmotDebug.queue status */
-   emcmotStatus.depth = tpQueueDepth(&emcmotDebug.queue);
-   emcmotStatus.activeDepth = tpActiveDepth(&emcmotDebug.queue);
-   emcmotStatus.id = tpGetExecId(&emcmotDebug.queue);
+   /* Get trajectory planner queue status */
+   emcmotStatus.depth = tpQueueDepth(&emcmotDebug.queue);   /* number of total queued motions */
+   emcmotStatus.activeDepth = tpActiveDepth(&emcmotDebug.queue); /* number of motions blending */
+   emcmotStatus.id = tpGetExecId(&emcmotDebug.queue);  /* gcode line number */
    emcmotStatus.motionType = tpGetMotionType(&emcmotDebug.queue);
    emcmotStatus.queueFull = tcqFull(&emcmotDebug.queue.queue);
 

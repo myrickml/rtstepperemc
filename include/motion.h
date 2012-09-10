@@ -481,8 +481,7 @@ typedef struct
    int kb_jog_active;           /* non-zero during a keyboard jog */
    int wheel_jog_active;        /* non-zero during a wheel jog */
 
-   /* internal info - changes regularly, not usually accessed from user
-      space */
+   /* internal info - changes regularly, not usually accessed from user space */
    CUBIC_STRUCT cubic;          /* cubic interpolator data */
 
    int on_pos_limit;            /* non-zero if on limit */
@@ -496,14 +495,12 @@ typedef struct
                                    to set position to zero during homing */
    int old_jog_counts;          /* prior value, used for deltas */
 
-   /* stuff moved from the other structs that might be needed (or might
-      not!) */
+   /* stuff moved from the other structs that might be needed (or might not!) */
    double big_vel;              /* used for "debouncing" velocity */
 } emcmot_joint_t;
 
 typedef struct
 {
-
    EMCMOT_JOINT_FLAG flag;      /* see above for bit details */
    double pos_cmd;              /* commanded joint position */
    double pos_fb;               /* position feedback, comp removed */
@@ -878,7 +875,7 @@ typedef struct _emcmot_status_t
 
    // aggregate of motion-related status classes
    emctraj_status_t traj;
-   emcaxis_status_t axis[EMCMOT_MAX_AXIS];
+   emcaxis_status_t axis[EMCMOT_MAX_AXIS];  /* used by emcStatus but not emcmotStatus */
 
    unsigned char head;          /* flag count for mutex detect */
 

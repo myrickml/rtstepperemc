@@ -65,9 +65,12 @@
 # Version 1.8.5, des 06/20/2012  Good release for ACTIVE_HIGH step/direction logic.
 # Version 1.8.6, des 06/23/2012  Fine tuned rtstepper.ini file for "A" axis (angular). Increased acceleration & velocity profile.
 # Version 1.8.9, des 07/08/2012  Fixed bug in the DIRECTION_ACTIVE_HIGH logic. Fixed a forever loop when Stepping followed by a Resume.
+# Version 1.8.13, des 07/30/2012  First cut with separate thread for trajectory planner.
+# Version 1.8.14, des 08/12/2012  New thread ok, now up to two moves are buffered for USB IO.
+# Version 1.8.15, des 08/30/2012  Fixed thread synchronization issue with previous control_cycle_thread().
 #
 
-AC_INIT([rtstepperemc], [1.8.10])
+AC_INIT([rtstepperemc], [1.8.15])
 AC_CANONICAL_HOST
 
 # Checks for programs.

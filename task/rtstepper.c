@@ -317,7 +317,7 @@ static int raw_write(struct rtstepper_app_session *ps, const void *buf, int size
 
 void bulk_write_thread(struct rtstepper_app_session *ps)
 {
-   int i, cnt = 0;
+   int i, result, cnt = 0;
    char s[64];
    static int derr = 0;
 
@@ -338,28 +338,29 @@ void bulk_write_thread(struct rtstepper_app_session *ps)
       if (!derr)
       {
          /* Dump byte_value, ring buffer index, gcode line number. */
-         for (i = 0; i < ps->total; i++)
-            fprintf(dump, "%x %d %d\n", ps->buf[i], ps->id, ++cnt);
+         for (i = 0; i < ps->xfr_total; i++)
+            fprintf(dump, "%x %d %d\n", ps->xfr_buf[i], ps->id, ++cnt);
       }
    }
 
-   ps->write_return = raw_write(ps, ps->buf, ps->total);
-
-   DBG("bulk_write_thread() done ret=%d\n", ps->write_return);
+   result = raw_write(ps, ps->xfr_buf, ps->xfr_total);
+   
+   DBG("bulk_write_thread() done ret=%d\n", result);
 
    if (verbose && dump)
       fflush(dump);
 
-   free(ps->buf);
-   ps->buf_size = 0;
-   for (i = 0; i < EMCMOT_MAX_AXIS; i++)
-   {
-      ps->clk_tail[i] = 0;
-      ps->direction[i] = 0;
-   }
-   ps->buf = NULL;
-   ps->total = 0;
+   free(ps->xfr_buf);
+   ps->xfr_buf = NULL;
+   ps->xfr_total = 0;
+
+   pthread_mutex_lock(&ps->mutex);
    ps->xfr_active = 0;
+   pthread_cond_signal(&ps->write_done_cond);
+   pthread_mutex_unlock(&ps->mutex);
+
+   if (result < 0 && ps->error_function != NULL)
+      ps->error_function(result);  /* call client error handler */
 
    return;
 }       /* bulk_write_thread() */
@@ -367,10 +368,16 @@ void bulk_write_thread(struct rtstepper_app_session *ps)
 enum RTSTEPPER_RESULT rtstepper_start_xfr(struct rtstepper_app_session *ps, int id, int num_axis)
 {
    enum RTSTEPPER_RESULT stat = RTSTEPPER_R_IO_ERROR;
-   int i, axis, mid, ret;
+   int i, axis, mid;
 
-   if (ps->total == 0 || !rtstepper_is_xfr_done(ps, &ret))
+   if (ps->total == 0)
       return RTSTEPPER_R_OK;
+
+   if (ps->xfr_active)
+   {
+      BUG("unable start bulk_write_thread, already active\n");
+      goto bugout;      /* bail */
+   }
 
    DBG("start_xfr: x_index=%d y_index=%d z_index=%d a_index=%d c_index=%d buf=%p cnt=%d\n", ps->master_index[0],
        ps->master_index[1], ps->master_index[2], ps->master_index[3], ps->master_index[5], ps->buf, ps->total);
@@ -393,6 +400,17 @@ enum RTSTEPPER_RESULT rtstepper_start_xfr(struct rtstepper_app_session *ps, int 
    }
 
    ps->id = id;
+   ps->xfr_buf = ps->buf;
+   ps->xfr_total = ps->total;
+   ps->buf = NULL;
+   ps->buf_size = 0;
+   ps->total = 0;
+   for (i = 0; i < EMCMOT_MAX_AXIS; i++)
+   {
+      ps->clk_tail[i] = 0;
+      ps->direction[i] = 0;
+   }
+
    ps->xfr_active = 1;
    if (pthread_create(&ps->bulk_write_tid, NULL, (void *(*)(void *)) bulk_write_thread, (void *) ps) != 0)
    {
@@ -406,6 +424,7 @@ enum RTSTEPPER_RESULT rtstepper_start_xfr(struct rtstepper_app_session *ps, int 
    return stat;
 }       /* rtstepper_start_xfr() */
 
+#if 0
 int rtstepper_is_xfr_done(struct rtstepper_app_session *ps, int *result)
 {
    int stat;
@@ -427,6 +446,7 @@ enum RTSTEPPER_RESULT rtstepper_clear_xfr_result(struct rtstepper_app_session *p
    ps->write_return = 0;
    return RTSTEPPER_R_OK;
 }       /* rtstepper_clear_xfr_result() */
+#endif
 
 /*
  * Given a command position in counts for each axis, encode each value into a single step/direction byte. 
@@ -662,10 +682,10 @@ enum RTSTEPPER_RESULT rtstepper_set_abort_wait(struct rtstepper_app_session *ps)
          break;  /* done */
    }
 
-   if (ps->xfr_active || ps->write_return < 0 || stat != RTSTEPPER_R_OK)
+   if (ps->xfr_active || stat != RTSTEPPER_R_OK)
    {
       rtstepper_exit(ps);
-      stat = rtstepper_init(ps);
+      stat = rtstepper_init(ps, ps->error_function);
    }
 
  bugout:
@@ -791,7 +811,7 @@ enum RTSTEPPER_RESULT rtstepper_query_state(struct rtstepper_app_session *ps)
    return stat;
 }       /* rtstepper_query_state() */
 
-enum RTSTEPPER_RESULT rtstepper_init(struct rtstepper_app_session *ps)
+enum RTSTEPPER_RESULT rtstepper_init(struct rtstepper_app_session *ps, rtstepper_io_error_cb error_function)
 {
    struct step_elements elements;
    enum RTSTEPPER_RESULT stat = RTSTEPPER_R_IO_ERROR;
@@ -808,8 +828,12 @@ enum RTSTEPPER_RESULT rtstepper_init(struct rtstepper_app_session *ps)
       ps->direction[i] = 0;
    }
    ps->total = 0;
+   ps->xfr_total = 0;
    ps->xfr_active = 0;
-   ps->write_return = 0;
+   ps->error_function = error_function;
+
+   pthread_mutex_init(&ps->mutex, NULL);
+   pthread_cond_init(&ps->write_done_cond, NULL);
 
    usb_init();
    usb_find_busses();
@@ -869,11 +893,20 @@ enum RTSTEPPER_RESULT rtstepper_exit(struct rtstepper_app_session *ps)
       ps->buf = NULL;
    }
 
+   if (ps->xfr_buf)
+   {
+      free(ps->xfr_buf);
+      ps->xfr_buf = NULL;
+   }
+
    if (ps->usbfd)
    {
       release_interface(&fd_table[ps->usbfd]);
       ps->usbfd = 0;
    }
+
+   pthread_mutex_destroy(&ps->mutex);
+   pthread_cond_destroy(&ps->write_done_cond);
 
    return RTSTEPPER_R_OK;
 }       /* rtstepper_exit() */

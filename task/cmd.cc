@@ -468,18 +468,24 @@ static void emcmotSetCycleTime(unsigned long nsec)
    emcmotSetServoCycleTime(nsec * 1e-9);
 }
 
-static int emcmotWriteCommand(emcmot_command_t * c)
+int emc_is_tp_done(struct emc_session *ps)
 {
-   static int commandNum = 0;
-   static unsigned char headCount = 0;
    int stat;
 
-//   DBG("emcmotWriteCommand()\n");
-   c->head = ++headCount;
-   c->tail = c->head;
-   c->commandNum = ++commandNum;
+   if (ps->control_cycle_thread_active)
+   {
+      stat = 0; /* false, trajectory planner is not done */
+   }
+   else
+   {
+      stat = 1; /* true, trajectory planner is done */
+   }
+   return stat;
+}       /* is_tp_done() */
 
-   emcmotCommandHandler(c);
+static void control_cycle_thread(struct emc_session *ps)
+{
+   pthread_detach(pthread_self());
 
    do
    {
@@ -488,11 +494,59 @@ static int emcmotWriteCommand(emcmot_command_t * c)
    }
    while (!(emcmotStatus.motionFlag & EMCMOT_MOTION_INPOS_BIT && emcmotStatus.depth == 0 && emcmotStatus.homing_active == 0));
 
-   if (emcmotStatus.commandStatus == EMCMOT_COMMAND_OK)
-      stat = EMC_R_OK;
-   else
-      stat = EMC_R_ERROR;
+   /* Wait for any previous write to finish. */
+   pthread_mutex_lock(&ps->dongle.mutex);
+   while (ps->dongle.xfr_active)
+      pthread_cond_wait(&ps->dongle.write_done_cond, &ps->dongle.mutex);
+   pthread_mutex_unlock(&ps->dongle.mutex);
 
+   /* Start a new write. */
+   rtstepper_start_xfr(&ps->dongle, tpGetExecId(&emcmotDebug.queue), emcmotStatus.traj.axes);
+
+   pthread_mutex_lock(&ps->mutex);
+   ps->control_cycle_thread_active = 0;
+   pthread_cond_signal(&ps->control_cycle_thread_done_cond);
+   pthread_mutex_unlock(&ps->mutex);
+
+   return;
+} /* control_cycle_thread() */
+
+static int emcmotWriteCommand(emcmot_command_t * c)
+{
+   struct emc_session *ps = &session;
+   static int commandNum = 0;
+   static unsigned char headCount = 0;
+   int stat = EMC_R_ERROR;
+
+//   DBG("emcmotWriteCommand()\n");
+   c->head = ++headCount;
+   c->tail = c->head;
+   c->commandNum = ++commandNum;
+
+   emcmotCommandHandler(c);
+
+   if (emcmotStatus.commandStatus != EMCMOT_COMMAND_OK)
+   {
+      BUG("invalid emcmotCommandHandler command\n");
+      goto bugout;      /* bail */
+   }
+
+   /* Wait for any previous control_cycle_thread to finish. */
+   pthread_mutex_lock(&ps->mutex);
+   while (ps->control_cycle_thread_active)
+      pthread_cond_wait(&ps->control_cycle_thread_done_cond, &ps->mutex);
+   pthread_mutex_unlock(&ps->mutex);
+
+   ps->control_cycle_thread_active = 1;
+   if (pthread_create(&ps->control_cycle_thread_tid, NULL, (void *(*)(void *))control_cycle_thread, (void *)ps) != 0)
+   {
+      BUG("unable to creat control_cycle_thread\n");
+      goto bugout;      /* bail */
+   }
+
+   stat = EMC_R_OK;
+
+bugout:
    return stat;
 }       /* emcmotWriteCommand() */
 
@@ -517,6 +571,24 @@ int emcOperatorError(int id, const char *fmt, ...)
 
    return EMC_R_OK;
 }       /* emcOperatorError() */
+
+/* Called from rt-stepper usb bulk write thread. */
+int emc_io_error_cb(int result)
+{
+   emc_command_msg_t mb;
+   emc_task_set_state_msg_t *cmd;
+   struct emc_session *ps = &session;
+
+   BUG("USB data write error=%d estop...\n", result);
+   emcOperatorError(0, EMC_I18N("USB data write error=%d ESTOP..."), result);
+
+   cmd = (emc_task_set_state_msg_t *) & mb;
+   cmd->msg.type = EMC_TASK_SET_STATE_TYPE;
+   cmd->state = EMC_TASK_STATE_ESTOP;
+   send_message(ps, &mb, "rts");
+
+   return 0;
+}       /* emc_io_error_cb() */
 
 void emcInitGlobals()
 {
@@ -623,7 +695,7 @@ int emcAxisUpdate(emcaxis_status_t * stat, int numAxes)
 {
    struct emc_session *ps = &session;
    emcmot_joint_t *joint;
-   int axis, ret;
+   int axis;
 
    // check for valid range
    if (numAxes <= 0 || numAxes > EMCMOT_MAX_JOINTS)
@@ -648,6 +720,7 @@ int emcAxisUpdate(emcaxis_status_t * stat, int numAxes)
          stat[axis].minFerror = joint->min_ferror;
          stat[axis].maxFerror = joint->max_ferror;
       }
+
       stat[axis].output = joint->pos_cmd;
       stat[axis].input = joint->pos_fb;
       stat[axis].velocity = joint->vel_cmd;
@@ -676,7 +749,7 @@ int emcAxisUpdate(emcaxis_status_t * stat, int numAxes)
             stat[axis].status = RCS_ERROR;
          }
       }
-      else if (joint->flag & EMCMOT_JOINT_INPOS_BIT && rtstepper_is_xfr_done(&ps->dongle, &ret))
+      else if (joint->flag & EMCMOT_JOINT_INPOS_BIT && emc_is_tp_done(ps))
       {
          stat[axis].status = RCS_DONE;
       }
@@ -1312,7 +1385,7 @@ int emcTrajSetUnits(double linearUnits, double angularUnits)
 int emcTrajUpdate(emctraj_status_t * stat)
 {
    struct emc_session *ps = &session;
-   int enables, ret;
+   int enables;
 
 //    stat->axes = localEmcTrajAxes;
 //    stat->axis_mask = localEmcTrajAxisMask;
@@ -1370,7 +1443,7 @@ int emcTrajUpdate(emctraj_status_t * stat)
    {
       stat->status = RCS_ERROR;
    }
-   else if (stat->inpos && (stat->queue == 0) && rtstepper_is_xfr_done(&ps->dongle, &ret))
+   else if (stat->inpos && (stat->queue == 0) && emc_is_tp_done(ps))
    {
       stat->status = RCS_DONE;
    }
@@ -1771,7 +1844,7 @@ int emcTaskSetState(int state)
 
       if (!rtstepper_is_connected(&ps->dongle))
       {
-         if (rtstepper_init(&ps->dongle) != RTSTEPPER_R_OK)
+         if (rtstepper_init(&ps->dongle, emc_io_error_cb) != RTSTEPPER_R_OK)
          {
             emcOperatorError(0, EMC_I18N("unable to connect to rt-stepper dongle"));
             emcStatus->io.aux.estop = 1;
@@ -1787,15 +1860,21 @@ int emcTaskSetState(int state)
       break;
    case EMC_TASK_STATE_ESTOP:
       BUG("set estop\n");
+      if (ps->control_cycle_thread_active)
+      {
+         pthread_cancel(ps->control_cycle_thread_tid); /* kill trajectory planner now */
+         ps->control_cycle_thread_active = 0;
+      }
       rtstepper_set_abort_wait(&ps->dongle);
       emcMotionAbort();
       emcSpindleOff();
-      // go into estop-- do both IO estop and machine servos off
       emcAuxEstopOn();
       for (i = 0; i < emcmotStatus.traj.axes; i++)
          emcAxisDisable(i);
       emcTrajDisable();
       emcLubeOff();
+      emcCoolantMistOff();
+      emcCoolantFloodOff();
       emcTaskAbort();
       emcIoAbort();
       emcAxisUnhome(-2);        // only those joints which are volatile_home
@@ -3162,7 +3241,7 @@ int emcTaskPlan(void)
 
             break;      // EMC_TASK_INTERP_PAUSED
 
-         case EMC_TASK_INTERP_WAITING:
+         case EMC_TASK_INTERP_WAITING:  // ON, AUTO, WAITING
             // interpreter ran to end
             // handle input commands
             switch (type)
