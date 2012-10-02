@@ -68,9 +68,11 @@
 # Version 1.8.13, des 07/30/2012  First cut with separate thread for trajectory planner.
 # Version 1.8.14, des 08/12/2012  New thread ok, now up to two moves are buffered for USB IO.
 # Version 1.8.15, des 08/30/2012  Fixed thread synchronization issue with previous control_cycle_thread().
+# Version 1.8.16, des 09/09/2012  Public release.
+# Version 1.8.17, des 10/01/2012  Fixed a dongle.mutex initialization issue which showed up in Windows.
 #
 
-AC_INIT([rtstepperemc], [1.8.15])
+AC_INIT([rtstepperemc], [1.8.17])
 AC_CANONICAL_HOST
 
 # Checks for programs.

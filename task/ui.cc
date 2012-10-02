@@ -1507,6 +1507,9 @@ enum EMC_RESULT emc_ui_init(const char *ini_file)
    emcStatus->task.interpState = EMC_TASK_INTERP_IDLE;
    emcStatus->task.execState = EMC_TASK_EXEC_DONE;
 
+   if (rtstepper_init(&ps->dongle, emc_io_error_cb) != RTSTEPPER_R_OK)
+      emcOperatorError(0, EMC_I18N("unable to connnect to rt-stepper dongle"));
+
    emcIoInit();
    emcIoUpdate(&emcStatus->io);
    emcMotionInit();
@@ -1519,9 +1522,6 @@ enum EMC_RESULT emc_ui_init(const char *ini_file)
       emcOperatorError(0, EMC_I18N("can't initialize interpreter"));
       goto bugout;
    }
-
-   if (rtstepper_init(&ps->dongle, emc_io_error_cb) != RTSTEPPER_R_OK)
-      emcOperatorError(0, EMC_I18N("unable to connnect to rt-stepper dongle"));
 
    emcTaskUpdate(&emcStatus->task);
 
