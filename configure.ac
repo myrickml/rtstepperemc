@@ -38,7 +38,13 @@
 #      ./configure --prefix=/opt/local LDFLAGS="-L/opt/local/lib -L/opt/local/lib/libusb-legacy" CFLAGS="-I/opt/local/include -I/opt/local/include/libusb-legacy" CXXFLAGS="-I/opt/local/include -I/opt/local/include/libusb-legacy"
 #     make
 #     make dmg
-# 
+#
+# Notes on compiling on Ubuntu 10.04
+#
+#     ./configure --prefix=/usr CFLAGS=-I/usr/include/tcl8.4 CXXFLAGS=-I/usr/include/tcl8.4 
+#     make
+#     make install
+#
 # Handy C format command:
 #     indent -bli0 -nbad -i3 -npcs -npsl -nut -l160 -c1 tclext.c
 #

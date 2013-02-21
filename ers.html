@@ -458,8 +458,9 @@ For Mac OSX use the following instructions to install <i>rt-stepper</i>. The ins
 
 <H3><a name="source"></a>11.4 Source Code Install</a></H3>
 
-Use this section as a reference for building and installing <i>rt-stepper</i> from source code. WARNING the instructions are not complete and vary by OS and release. 
-There are many build time dependencies. Even an experienced programmer will find building from source code very frustrating.
+Use this section as a reference for building and installing <i>rt-stepper</i> from source code. WARNING the instructions may not be complete and vary by OS and release. 
+There are a few build time dependencies that are needed in order to build a binary from source code. An experienced programmer should have no problem 
+building from source code since many of the original EMC2 dependencies have been removed.
 <p>
 For Linux use the following steps to build and install <i>rt-stepper</i>. 
 <ol>
@@ -485,6 +486,11 @@ For Mac OSX 1.6 use the following steps to build and install <i>rt-stepper</i>.
 <li> Install libusb.
 <pre>
 sudo port install libusb-legacy
+</pre>
+</li>
+<li> Install gettext.
+<pre>
+sudo port install gettext.
 </pre>
 </li>
 <li> Download and untar the latest <i>rt-stepper</i> tar ball. 
@@ -669,7 +675,7 @@ Weight: 2.3 oz.
 <center>
 &#169 2009-2012 Eckler Software<br>
 <IMG SRC="sig.png"><br>
-Last updated September 4, 2012
+Last updated February 5, 2013
 </center>
 </font>
 </font>
