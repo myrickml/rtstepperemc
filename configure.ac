@@ -76,9 +76,10 @@
 # Version 1.8.15, des 08/30/2012  Fixed thread synchronization issue with previous control_cycle_thread().
 # Version 1.8.16, des 09/09/2012  Public release.
 # Version 1.8.17, des 10/01/2012  Fixed a dongle.mutex initialization issue which showed up in Windows.
+# Version 1.8.18, des 02/28/2013  Minor changes for building on Ubuntu 12.04.
 #
 
-AC_INIT([rtstepperemc], [1.8.17])
+AC_INIT([rtstepperemc], [1.8.18])
 AC_CANONICAL_HOST
 
 # Checks for programs.
@@ -127,7 +128,7 @@ AC_CHECK_LIB([m], [pow],, [AC_MSG_ERROR([cannot find libm math support], 10)])
 
 # Checks for required development packages.
 AC_CHECK_HEADERS(pthread.h,, [AC_MSG_ERROR([cannot find libpthread-devel support], 11)])
-AC_CHECK_HEADERS(curses.h,, [AC_MSG_ERROR([cannot find libcurses-devel support], 12)])
+#AC_CHECK_HEADERS(curses.h,, [AC_MSG_ERROR([cannot find libcurses-devel support], 12)])
 if test "$mingw_build" = "yes"; then
    AC_CHECK_HEADERS(usb-winusb.h,, [AC_MSG_ERROR([cannot find libusb-winusb support], 13)])
 else
@@ -161,7 +162,7 @@ if test "$mingw_build" = "yes"; then
    if test "$host" = "i686-pc-mingw32"; then
       mingw_path="/usr/i686-pc-mingw32/sys-root/mingw/bin"
    else
-      mingw_path="/usr/i586-mingw32msvc/lib"
+      mingw_path="/usr/${host}/lib"
    fi
 elif test "$darwin_build" = "yes"; then
    dll_extension="dylib"

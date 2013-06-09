@@ -78,7 +78,7 @@ include an option for suppressing superfluous commands.
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
-#include <libintl.h>
+//#include <libintl.h>
 
 #include "ini.h"		// INIFILE
 #include "rs274ngc.h"
@@ -94,7 +94,7 @@ extern char * _rs274ngc_errors[];
 
 #undef LOG_FILE
 
-#define LOG_FILE &_setup.log_file[0]
+//#define LOG_FILE &_setup.log_file[0]
 
 Interp::Interp() 
     : log_file(0)
@@ -769,7 +769,7 @@ int Interp::read(const char *command)  //!< may be NULL or a string to read
   }
   if (_setup.toolchange_flag == ON) {
     CHKS((GET_EXTERNAL_QUEUE_EMPTY() == 0),
-         _("Queue is not empty after tool change"));
+         EMC_I18N("Queue is not empty after tool change"));
     refresh_actual_position(&_setup);
     load_tool_table();
     _setup.toolchange_flag = OFF;

@@ -61,6 +61,10 @@ enum EMC_UI_WAIT_TYPE
 #define EMC_I18N(text) text
 #endif
 
+#define container_of(ptr, type, member) ({            \
+ const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
+ (type *)( (char *)__mptr - offsetof(type,member) );})
+
 #define EMC_AXIS_MAX EMCMOT_MAX_AXIS
 #define EMC_MAX_DIO EMCMOT_MAX_DIO
 #define EMC_MAX_AIO EMCMOT_MAX_AIO

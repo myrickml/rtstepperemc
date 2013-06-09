@@ -53,6 +53,7 @@ tcl_stub_lib_flag = @tcl_stub_lib_flag@
 darwin_build = @darwin_build@
 linux_build = @linux_build@
 BUNDLE = tkmini.app
+host_cpu = @host_cpu@
 
 INCLUDES = -Iinclude
 
@@ -66,6 +67,15 @@ endif
 ifeq ($(linux_build),no)
 docdir = doc
 emcconfdir = etc
+endif
+
+ifeq ($(mingw_build),yes)
+ifeq ($(host_cpu),i686)
+win_bin = win32
+endif
+ifeq ($(host_cpu),x86_64)
+win_bin = win64
+endif
 endif
 
 DEFS += -DLINELEN=255 \
@@ -133,10 +143,10 @@ rtstepperemc.so: $(TASK_OBJ)
 	$(CXX) -shared -o $@ $(TASK_OBJ) -L. $(LDFLAGS) $(LIBS) -lusb -lpthread -DUSE_TCL_STUBS $(tcl_stub_lib_flag)
 
 rtstepperemc.dylib: $(TASK_OBJ)
-	$(CXX) -shared -o $@ $(TASK_OBJ) -Wl,-headerpad_max_install_names -L. $(LDFLAGS) $(LIBS) -lpthread -DUSE_TCL_STUBS -ltcl -lusb-legacy -lintl
+	$(CXX) -shared -o $@ $(TASK_OBJ) -Wl,-headerpad_max_install_names -L. $(LDFLAGS) $(LIBS) -lpthread -DUSE_TCL_STUBS -ltcl -lusb-legacy
 
 rtstepperemc.dll: $(TASK_OBJ)
-	$(CXX) -shared -o $@ $(TASK_OBJ) -L. $(LDFLAGS) $(LIBS) -lusb-winusb -lpthread -DUSE_TCL_STUBS -ltcl.dll -lwsock32 -lintl
+	$(CXX) -shared -o $@ $(TASK_OBJ) -L. $(LDFLAGS) $(LIBS) -lusb-winusb -lpthread -DUSE_TCL_STUBS -ltcl.dll -lwsock32
 
 rt-test: $(RTTEST_OBJ)
 ifeq ($(darwin_build),yes)
@@ -306,33 +316,33 @@ dmg:
 	  --icon "rtstepper.ini" 380 265 --icon "ers" 110 265 $(PACKAGE)-$(VERSION)-$(relnum)-macosx-10.6-intel.dmg tkmini.app
 
 zip:
-	rm -fr $(PACKAGE)_win32-$(VERSION)-$(relnum)
-	install -d $(PACKAGE)_win32-$(VERSION)-$(relnum)/$(emcconfdir)
+	rm -fr $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)
+	install -d $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/$(emcconfdir)
 	@for i in $(dist_CONF_DATA); do \
-	   $(INSTALL_DATA) $(srcdir)/$$i $(PACKAGE)_win32-$(VERSION)-$(relnum)/$(emcconfdir); \
+	   $(INSTALL_DATA) $(srcdir)/$$i $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/$(emcconfdir); \
 	done
-	install -d  $(PACKAGE)_win32-$(VERSION)-$(relnum)/$(docdir)-$(VERSION)
+	install -d  $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/$(docdir)-$(VERSION)
 	@for i in $(dist_doc_DATA); do \
-	   $(INSTALL_DATA) $(srcdir)/$$i $(PACKAGE)_win32-$(VERSION)-$(relnum)/$(docdir)-$(VERSION); \
+	   $(INSTALL_DATA) $(srcdir)/$$i $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/$(docdir)-$(VERSION); \
 	done
-	$(INSTALL) $(mingw_path)/pdcurses.dll $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	$(INSTALL) $(mingw_path)/pthreadGC2.dll $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	$(INSTALL) $(mingw_path)/libgcc_s_sjlj-1.dll $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	$(INSTALL) $(mingw_path)/libintl-8.dll $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	$(INSTALL) $(mingw_path)/libiconv-2.dll $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	$(INSTALL_DATA) rt-stepper.inf $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	$(INSTALL) *.exe $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	$(INSTALL_SCRIPT) mini/mini.tcl $(PACKAGE)_win32-$(VERSION)-$(relnum)/tkmini.tcl
-	$(INSTALL) rtstepperemc.dll $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	$(INSTALL_SCRIPT) mini/emc.tcl $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	install -d $(PACKAGE)_win32-$(VERSION)-$(relnum)/i386
-	$(INSTALL) i386/*dll $(PACKAGE)_win32-$(VERSION)-$(relnum)/i386/
-	install -d $(PACKAGE)_win32-$(VERSION)-$(relnum)/amd64
-	$(INSTALL) amd64/*dll $(PACKAGE)_win32-$(VERSION)-$(relnum)/amd64/
-	$(INSTALL) wusb/usb.h wusb/wusb-lsusb.exe $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	$(INSTALL) wusb/libusb-winusb.dll wusb/libusb-winusb.a $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	$(INSTALL) rt-test.exe $(PACKAGE)_win32-$(VERSION)-$(relnum)/
-	zip -r $(PACKAGE)_win32-$(VERSION)-$(relnum).zip $(PACKAGE)_win32-$(VERSION)-$(relnum)
-	rm -fr $(PACKAGE)_win32-$(VERSION)-$(relnum)
+	$(INSTALL) $(mingw_path)/pthreadGC2.dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL) $(mingw_path)/libgcc_s_sjlj-1.dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL) $(mingw_path)/libstdc++-6.dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL_DATA) rt-stepper.inf $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL) *.exe $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL_SCRIPT) mini/mini.tcl $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/tkmini.tcl
+	$(INSTALL) rtstepperemc.dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL_SCRIPT) mini/emc.tcl $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	install -d $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/i386
+	$(INSTALL) i386/*dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/i386/
+	install -d $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/amd64
+	$(INSTALL) amd64/*dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/amd64/
+	$(INSTALL) $(mingw_inc_path)/usb-winusb.h $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL) $(mingw_path)/wusb-lsusb.exe $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL) $(mingw_path)/libusb-winusb.dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL) $(mingw_path)/libusb-winusb.a $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL) $(mingw_path)/rt-test.exe $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	zip -r $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum).zip $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)
+	rm -fr $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)
 
 .PHONY: dist uninstall install all clean zip

@@ -95,7 +95,7 @@ int Interp::check_g_codes(block_pointer block,   //!< pointer to a block to be c
   } else if (mode0 == G_28) {
   } else if (mode0 == G_30) {
   } else if (mode0 == G_5_3) { 
-      CHKS(((mode1 != G_5_2) && (mode1 != -1)), _("Between G5.2 and G5.3 codes, only additional G5.2 codes are allowed."));
+      CHKS(((mode1 != G_5_2) && (mode1 != -1)), EMC_I18N("Between G5.2 and G5.3 codes, only additional G5.2 codes are allowed."));
   } else if (mode1 == G_5_2){
   } else if (mode0 == G_28_1 || mode0 == G_30_1) {
   } else if (mode0 == G_53) {
@@ -247,36 +247,36 @@ int Interp::check_other_codes(block_pointer block)       //!< pointer to a block
     CHKS(((block->g_modes[7] != G_41) && (block->g_modes[7] != G_42) &&
         (block->g_modes[7] != G_41_1) && (block->g_modes[7] != G_42_1) &&
 	(block->g_modes[14] != G_96)),
-        _("D word with no G41, G41.1, G42, G42.1, or G96 to use it"));
+        EMC_I18N("D word with no G41, G41.1, G42, G42.1, or G96 to use it"));
   }
 
   if (block->e_flag == ON) {
     CHKS(((motion != G_76) && (block->m_modes[5] != 66) && 
       (block->m_modes[5] != 67) && (block->m_modes[5] != 68)),
-       _("E word with no G76, M66, M67 or M68 to use it"));
+       EMC_I18N("E word with no G76, M66, M67 or M68 to use it"));
   }
 
   if (block->h_flag == ON) {
     CHKS((block->g_modes[8] != G_43 && motion != G_76),
-      _("H word with no G43 or G76 to use it"));
+      EMC_I18N("H word with no G43 or G76 to use it"));
   }
 
   if (block->i_flag == ON) {    /* could still be useless if yz_plane arc */
     CHKS(((motion != G_2) && (motion != G_3) && (motion != G_5) && (motion != G_5_1) &&
           (motion != G_76) && (motion != G_87) && (block->g_modes[0] != G_10)),
-        _("I word with no G2, G3, G5, G5.1, G10, G76, or G87 to use it"));
+        EMC_I18N("I word with no G2, G3, G5, G5.1, G10, G76, or G87 to use it"));
   }
 
   if (block->j_flag == ON) {    /* could still be useless if xz_plane arc */
     CHKS(((motion != G_2) && (motion != G_3) && (motion != G_5) && (motion != G_5_1) && 
           (motion != G_76) && (motion != G_87) && (block->g_modes[0] != G_10)),
-        _("J word with no G2, G3, G5, G5.1, G10, G76 or G87 to use it"));
+        EMC_I18N("J word with no G2, G3, G5, G5.1, G10, G76 or G87 to use it"));
   }
 
   if (block->k_flag == ON) {    /* could still be useless if xy_plane arc */
     CHKS(((motion != G_2) && (motion != G_3) && (motion != G_33) &&
         (motion != G_33_1) && (motion != G_76) && (motion != G_87)),
-        _("K word with no G2, G3, G33, G33.1, G76, or G87 to use it"));
+        EMC_I18N("K word with no G2, G3, G33, G33.1, G76, or G87 to use it"));
   }
 
   if (block->l_number != -1) {
@@ -286,7 +286,7 @@ int Interp::check_other_codes(block_pointer block)       //!< pointer to a block
          (block->g_modes[7] != G_41) && (block->g_modes[7] != G_41_1) &&
          (block->g_modes[7] != G_42) && (block->g_modes[7] != G_42_1) &&
 	 (block->m_modes[5] != 66)),
-         _("L word with no G10, cutter compensation, canned cycle, digital/analog input, or NURBS code"));
+         EMC_I18N("L word with no G10, cutter compensation, canned cycle, digital/analog input, or NURBS code"));
   }
 
   if (block->p_flag == ON) {
@@ -297,7 +297,7 @@ int Interp::check_other_codes(block_pointer block)       //!< pointer to a block
           (block->m_modes[9] != 53) && (block->m_modes[5] != 62) && (block->m_modes[5] != 63) &&
           (block->m_modes[5] != 64) && (block->m_modes[5] != 65) && (block->m_modes[5] != 66) &&
           (block->user_m != 1)),
-          _("P word with no G4 G10 G64 G5 G5.2 G76 G82 G86 G88 G89"
+          EMC_I18N("P word with no G4 G10 G64 G5 G5.2 G76 G82 G86 G88 G89"
             " or M50 M51 M52 M53 M62 M63 M64 M65 M66 or user M code to use it"));
   }
 
@@ -305,7 +305,7 @@ int Interp::check_other_codes(block_pointer block)       //!< pointer to a block
       CHKS((motion != G_83) && (motion != G_73) && (motion != G_5) && (block->user_m != 1) && (motion != G_76) &&
           (block->m_modes[5] != 66) && (block->m_modes[5] != 67) && (block->m_modes[5] != 68) && 
           (block->g_modes[0] != G_10) && (block->m_modes[6] != 61) && (block->g_modes[13] != G_64), 
-          _("Q word with no G5, G10, G64, G73, G76, G83, M66, M67, M68 or user M code that uses it"));
+          EMC_I18N("Q word with no G5, G10, G64, G73, G76, G83, M66, M67, M68 or user M code that uses it"));
   }
 
   if (block->r_flag == ON) {

@@ -22,13 +22,13 @@
 #include <ctype.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <libintl.h>
+//#include <libintl.h>
 #include "rs274ngc.h"
 #include "rs274ngc_return.h"
 #include "rs274ngc_interp.h"
 #include "interp_internal.h"
 
-#define _(s) gettext(s)
+//#define _(s) gettext(s)
 
 char Interp::arc_axis1(int plane) {
     switch(plane) {
@@ -104,9 +104,9 @@ int Interp::arc_data_comp_ijk(int move,  //!<either G_2 (cw arc) or G_3 (ccw arc
   }
   arc_radius = hypot((*center_x - current_x), (*center_y - current_y));
   radius2 = hypot((*center_x - end_x), (*center_y - end_y));
-  CHKS(((arc_radius < min_radius) || (radius2 < min_radius)), _("Zero radius arc"));
+  CHKS(((arc_radius < min_radius) || (radius2 < min_radius)), EMC_I18N("Zero radius arc"));
   CHKS((fabs(arc_radius - radius2) > tolerance),
-      _("Radius to end of arc differs from radius to start: "
+      EMC_I18N("Radius to end of arc differs from radius to start: "
        "start=(%c%.4f,%c%.4f) center=(%c%.4f,%c%.4f) end=(%c%.4f,%c%.4f) r1=%.4f r2=%.4f"),
        a, current_x, b, current_y, 
        a, *center_x, b, *center_y, 
@@ -268,7 +268,7 @@ int Interp::arc_data_ijk(int move,       //!< either G_2 (cw arc) or G_3 (ccw ar
   radius2 = hypot((*center_x - end_x), (*center_y - end_y));
   CHKS(((radius < min_radius) || (radius2 < min_radius)), NCE_ZERO_RADIUS_ARC);
   CHKS((fabs(radius - radius2) > tolerance),
-      _("Radius to end of arc differs from radius to start: "
+      EMC_I18N("Radius to end of arc differs from radius to start: "
        "start=(%c%.4f,%c%.4f) center=(%c%.4f,%c%.4f) end=(%c%.4f,%c%.4f) r1=%.4f r2=%.4f"),
        a, current_x, b, current_y, 
        a, *center_x, b, *center_y, 

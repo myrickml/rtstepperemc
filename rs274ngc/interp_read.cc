@@ -1093,11 +1093,11 @@ int Interp::read_one_item(
 
   letter = line[*counter];      /* check if in array range */
   CHKS(((letter < ' ') || (letter > 'z')),
-	_("Bad character '\\%03o' used"), (unsigned char)letter);
+	EMC_I18N("Bad character '\\%03o' used"), (unsigned char)letter);
   function_pointer = _readers[(int) letter]; /* Find the function pointer in the array */
   CHKS((function_pointer == 0),
 	(!isprint(letter) || isspace(letter)) ?
-	    _("Bad character '\\%03o' used") : _("Bad character '%c' used"), letter);
+	    EMC_I18N("Bad character '\\%03o' used") : EMC_I18N("Bad character '%c' used"), letter);
   CHP((*this.*function_pointer)(line, counter, block, parameters)); /* Call the function */ 
   return INTERP_OK;
 }
@@ -1860,7 +1860,7 @@ int Interp::store_named_param(
   logDebug("%s: param:|%s| returning not defined", "store_named_param",
            nameBuf);
 
-  ERS(_("Internal error: Could not assign #<%s>"), nameBuf);
+  ERS(EMC_I18N("Internal error: Could not assign #<%s>"), nameBuf);
 }
 
 int Interp::add_named_param(
@@ -2012,7 +2012,7 @@ int Interp::read_named_parameter(
   *double_ptr = 0.0;
   
   logDebug("Interp::read_named_parameter: level[%d] param:|%s| returning not defined", level, paramNameBuf);
-  ERS(_("Named parameter #<%s> not defined"), paramNameBuf);
+  ERS(EMC_I18N("Named parameter #<%s> not defined"), paramNameBuf);
 }
 
 
@@ -3275,7 +3275,7 @@ int Interp::read_u(char *line,   //!< string: line of RS274/NGC code being proce
 
   CHKS((line[*counter] != 'u'), NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED);
   *counter = (*counter + 1);
-  CHKS((block->u_flag != OFF), _("Multiple U words on one line"));
+  CHKS((block->u_flag != OFF), EMC_I18N("Multiple U words on one line"));
   CHP(read_real_value(line, counter, &value, parameters));
   block->u_flag = ON;
   block->u_number = value;
@@ -3291,7 +3291,7 @@ int Interp::read_v(char *line,   //!< string: line of RS274/NGC code being proce
 
   CHKS((line[*counter] != 'v'), NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED);
   *counter = (*counter + 1);
-  CHKS((block->v_flag != OFF), _("Multiple V words on one line"));
+  CHKS((block->v_flag != OFF), EMC_I18N("Multiple V words on one line"));
   CHP(read_real_value(line, counter, &value, parameters));
   block->v_flag = ON;
   block->v_number = value;
@@ -3307,7 +3307,7 @@ int Interp::read_w(char *line,   //!< string: line of RS274/NGC code being proce
 
   CHKS((line[*counter] != 'w'), NCE_BUG_FUNCTION_SHOULD_NOT_HAVE_BEEN_CALLED);
   *counter = (*counter + 1);
-  CHKS((block->w_flag != OFF), _("Multiple W words on one line"));
+  CHKS((block->w_flag != OFF), EMC_I18N("Multiple W words on one line"));
   CHP(read_real_value(line, counter, &value, parameters));
   block->w_flag = ON;
   block->w_number = value;

@@ -94,7 +94,7 @@ double Interp::find_arc_length(double x1,        //!< X-coordinate of start poin
 int Interp::unwrap_rotary(double *r, double sign_of, double commanded, double current, char axis) {
     double result;
     int neg = copysign(1.0, sign_of) < 0.0;
-    CHKS((sign_of <= -360.0 || sign_of >= 360.0), (_("Invalid absolute position %5.2f for wrapped rotary axis %c")), sign_of, axis);
+    CHKS((sign_of <= -360.0 || sign_of >= 360.0), (EMC_I18N("Invalid absolute position %5.2f for wrapped rotary axis %c")), sign_of, axis);
     
     double d = floor(current/360.0);
     result = fabs(commanded) + (d*360.0);
@@ -167,7 +167,7 @@ int Interp::find_ends(block_pointer block,       //!< pointer to a block of RS27
 #ifdef DEBUG_EMC
         COMMENT("interpreter: offsets temporarily suspended");
 #endif
-        CHKS((block->radius_flag || block->theta_flag), _("Cannot use polar coordinates with G53"));
+        CHKS((block->radius_flag || block->theta_flag), EMC_I18N("Cannot use polar coordinates with G53"));
 
         double cx = s->current_x;
         double cy = s->current_y;
@@ -263,19 +263,19 @@ int Interp::find_ends(block_pointer block,       //!< pointer to a block of RS27
         }
 
         if(block->radius_flag == ON && block->theta_flag == ON) {
-            CHKS((block->x_flag == ON || block->y_flag == ON), _("Cannot specify X or Y words with polar coordinate"));
+            CHKS((block->x_flag == ON || block->y_flag == ON), EMC_I18N("Cannot specify X or Y words with polar coordinate"));
             *px = block->radius * cos(D2R(block->theta));
             *py = block->radius * sin(D2R(block->theta));
         } else if(block->radius_flag == ON) {
             double theta;
-            CHKS((block->x_flag == ON || block->y_flag == ON), _("Cannot specify X or Y words with polar coordinate"));
-            CHKS((*py == 0 && *px == 0), _("Must specify angle in polar coordinate if at the origin"));
+            CHKS((block->x_flag == ON || block->y_flag == ON), EMC_I18N("Cannot specify X or Y words with polar coordinate"));
+            CHKS((*py == 0 && *px == 0), EMC_I18N("Must specify angle in polar coordinate if at the origin"));
             theta = atan2(*py, *px);
             *px = block->radius * cos(theta);
             *py = block->radius * sin(theta);
         } else  if(block->theta_flag == ON) {
             double radius;
-            CHKS((block->x_flag == ON || block->y_flag == ON), _("Cannot specify X or Y words with polar coordinate"));
+            CHKS((block->x_flag == ON || block->y_flag == ON), EMC_I18N("Cannot specify X or Y words with polar coordinate"));
             radius = hypot(*py, *px);
             *px = radius * cos(D2R(block->theta));
             *py = radius * sin(D2R(block->theta));
@@ -334,8 +334,8 @@ int Interp::find_ends(block_pointer block,       //!< pointer to a block of RS27
 
         if(block->radius_flag == ON) {
             double radius, theta;
-            CHKS((block->x_flag == ON || block->y_flag == ON), _("Cannot specify X or Y words with polar coordinate"));
-            CHKS((*py == 0 && *px == 0), _("Incremental motion with polar coordinates is indeterminate when at the origin"));
+            CHKS((block->x_flag == ON || block->y_flag == ON), EMC_I18N("Cannot specify X or Y words with polar coordinate"));
+            CHKS((*py == 0 && *px == 0), EMC_I18N("Incremental motion with polar coordinates is indeterminate when at the origin"));
             theta = atan2(*py, *px);
             radius = hypot(*py, *px) + block->radius;
             *px = radius * cos(theta);
@@ -344,8 +344,8 @@ int Interp::find_ends(block_pointer block,       //!< pointer to a block of RS27
 
         if(block->theta_flag == ON) {
             double radius, theta;
-            CHKS((block->x_flag == ON || block->y_flag == ON), _("Cannot specify X or Y words with polar coordinate"));
-            CHKS((*py == 0 && *px == 0), _("G91 motion with polar coordinates is indeterminate when at the origin"));
+            CHKS((block->x_flag == ON || block->y_flag == ON), EMC_I18N("Cannot specify X or Y words with polar coordinate"));
+            CHKS((*py == 0 && *px == 0), EMC_I18N("G91 motion with polar coordinates is indeterminate when at the origin"));
             theta = atan2(*py, *px) + D2R(block->theta);
             radius = hypot(*py, *px);
             *px = radius * cos(theta);
@@ -617,6 +617,6 @@ int Interp::find_tool_pocket(setup_pointer settings, int toolno, int *pocket)
         }
     }
 
-    CHKS((*pocket == -1), (_("Requested tool %d not found in the tool table")), toolno);
+    CHKS((*pocket == -1), (EMC_I18N("Requested tool %d not found in the tool table")), toolno);
     return INTERP_OK;
 }
