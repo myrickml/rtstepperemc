@@ -80,6 +80,8 @@ enum FD_ID
    FD_MAX
 };
 
+extern const char *USER_HOME_DIR;
+
 /*
  * The folloing fd arrays must match "enum FD_ID" definition.
  */
@@ -327,7 +329,7 @@ void bulk_write_thread(struct rtstepper_app_session *ps)
    {
       if (!derr && dump == NULL)
       {
-         sprintf(s, "%s.dat", PACKAGE_NAME);
+         sprintf(s, "%s/.%s/raw.dat", USER_HOME_DIR, PACKAGE_NAME);
          if ((dump = fopen(s, "w+")) == NULL)   /* truncate any old file */
          {
             BUG("unable to create %s\n", s);
@@ -356,7 +358,7 @@ void bulk_write_thread(struct rtstepper_app_session *ps)
 
    pthread_mutex_lock(&ps->mutex);
    ps->xfr_active = 0;
-   pthread_cond_signal(&ps->write_done_cond);
+   pthread_cond_broadcast(&ps->write_done_cond);
    pthread_mutex_unlock(&ps->mutex);
 
    if (result < 0 && ps->error_function != NULL)
@@ -385,6 +387,9 @@ enum RTSTEPPER_RESULT rtstepper_start_xfr(struct rtstepper_app_session *ps, int 
    /* Finish last pulse for this step buffer. */
    for (axis = 0; axis < num_axis; axis++)
    {
+      if (ps->step_pin[axis] == 0)
+         continue;   /* skip */
+
       if (ps->clk_tail[axis])
       {
          /* Stretch pulse to 50% duty cycle. */
@@ -424,30 +429,6 @@ enum RTSTEPPER_RESULT rtstepper_start_xfr(struct rtstepper_app_session *ps, int 
    return stat;
 }       /* rtstepper_start_xfr() */
 
-#if 0
-int rtstepper_is_xfr_done(struct rtstepper_app_session *ps, int *result)
-{
-   int stat;
-
-   if (ps->xfr_active)
-   {
-      stat = 0; /* false */
-   }
-   else
-   {
-      stat = 1; /* true */
-      *result = ps->write_return;
-   }
-   return stat;
-}       /* rtstepper_is_xfr_done() */
-
-enum RTSTEPPER_RESULT rtstepper_clear_xfr_result(struct rtstepper_app_session *ps)
-{
-   ps->write_return = 0;
-   return RTSTEPPER_R_OK;
-}       /* rtstepper_clear_xfr_result() */
-#endif
-
 /*
  * Given a command position in counts for each axis, encode each value into a single step/direction byte. 
  * Store the byte in buffer that is big enough to hold a complete stepper motor move.
@@ -473,42 +454,32 @@ enum RTSTEPPER_RESULT rtstepper_encode(struct rtstepper_app_session *ps, int id,
 
    for (axis = 0; axis < num_axis; axis++)
    {
+      /* Check DB25 pin assignments for this axis, if no pins are assigned skip this axis. Useful for XYZABC axes where AB are unused. */
+      if (ps->step_pin[axis] == 0 || ps->direction_pin[axis] == 0)
+         continue;   /* skip */
+
       /* Set step bit to default state, high if low_true logic or low if high_true logic. */
       if (ps->step_active_high[axis])
       {
-         /* If step_pen[n] == 0 then the axis is unused. Useful for XYZABC axes where AB are unused. */
-         if (ps->step_pin[axis])
-         {
-            ps->buf[ps->total] &= ~pin_map[ps->step_pin[axis]];
-            ps->buf[ps->total + 1] &= ~pin_map[ps->step_pin[axis]];
-         }
+         ps->buf[ps->total] &= ~pin_map[ps->step_pin[axis]];
+         ps->buf[ps->total + 1] &= ~pin_map[ps->step_pin[axis]];
       }
       else
       {
-         if (ps->step_pin[axis])
-         {
-            ps->buf[ps->total] |= pin_map[ps->step_pin[axis]];
-            ps->buf[ps->total + 1] |= pin_map[ps->step_pin[axis]];
-         }
+         ps->buf[ps->total] |= pin_map[ps->step_pin[axis]];
+         ps->buf[ps->total + 1] |= pin_map[ps->step_pin[axis]];
       }
 
       /* Set direction bit to default state, high if low_true logic or low if high_true logic. */
       if (ps->direction_active_high[axis])
       {
-         /* If direction_pen[n] == 0 then the axis is unused. Useful for XYZABC axes where AB are unused. */
-         if (ps->direction_pin[axis])
-         {
-            ps->buf[ps->total] &= ~pin_map[ps->direction_pin[axis]];
-            ps->buf[ps->total + 1] &= ~pin_map[ps->direction_pin[axis]];
-         }
+         ps->buf[ps->total] &= ~pin_map[ps->direction_pin[axis]];
+         ps->buf[ps->total + 1] &= ~pin_map[ps->direction_pin[axis]];
       }
       else
       {
-         if (ps->direction_pin[axis])
-         {
-            ps->buf[ps->total] |= pin_map[ps->direction_pin[axis]];
-            ps->buf[ps->total + 1] |= pin_map[ps->direction_pin[axis]];
-         }
+         ps->buf[ps->total] |= pin_map[ps->direction_pin[axis]];
+         ps->buf[ps->total + 1] |= pin_map[ps->direction_pin[axis]];
       }
 
       /* Calculate the step pulse for this clock cycle */
@@ -563,6 +534,23 @@ enum RTSTEPPER_RESULT rtstepper_encode(struct rtstepper_app_session *ps, int id,
 
 //      DBG("axis=%d index=%0.6f master_index=%d\n", axis, index[axis] * ps->steps_per_unit[axis], ps->master_index[axis]);
    }    /* for (axis=0; axis < num_axis; axis++) */
+
+   for (i=0; i<RTSTEPPER_GPO_MAX; i++)
+   {
+      if (ps->gpo_pin[i] == 0)
+         continue;   /* skip */
+
+      if (ps->gpo[i])
+      {
+         ps->buf[ps->total] |= pin_map[ps->gpo_pin[i]];    /* set bit */
+         ps->buf[ps->total + 1] |= pin_map[ps->gpo_pin[i]];  /* set bit */
+      }
+      else
+      {
+         ps->buf[ps->total] &= ~pin_map[ps->gpo_pin[i]];       /* clear bit */
+         ps->buf[ps->total + 1] &= ~pin_map[ps->gpo_pin[i]];   /* clear bit */
+      }
+   }
 
    ps->total += 2;
 
@@ -673,7 +661,10 @@ enum RTSTEPPER_RESULT rtstepper_set_abort_wait(struct rtstepper_app_session *ps)
 
    /* Instead of waiting for all IO to finish, kill it now. */
    if (ps->xfr_active)
+   {
       pthread_cancel(ps->bulk_write_tid);
+      pthread_cond_broadcast(&ps->write_done_cond);
+   }
 
    /* Wait for step buffer to drain. */
    while ((stat = rtstepper_query_state(ps)) == RTSTEPPER_R_OK)
@@ -692,23 +683,49 @@ enum RTSTEPPER_RESULT rtstepper_set_abort_wait(struct rtstepper_app_session *ps)
    return stat;
 }       /* rtstepper_set_abort_wait() */
 
-enum RTSTEPPER_RESULT rtstepper_is_input0_triggered(struct rtstepper_app_session *ps)
+enum RTSTEPPER_RESULT rtstepper_set_gpo(struct rtstepper_app_session *ps, enum RTSTEPPER_GPO_BIT num, int value)
 {
    enum RTSTEPPER_RESULT stat = RTSTEPPER_R_REQ_ERROR;
+
+   if (!ps->usbfd)
+      goto bugout;
+
+   DBG("rtstepper_set_gpo() num=%d val=%d\n", num, value);
+
+   if (num < 0 || num >= RTSTEPPER_GPO_MAX)
+   {
+      BUG("invalid output signal OUTPUT=%d\n", num);
+      goto bugout;      
+   }
+
+   if (ps->gpo_pin[num] == 0)
+   {
+      DBG("OUTPUT=%d is not enabled\n", num);
+      goto bugout;      
+   }
+
+   ps->gpo[num] = value;
+   stat = RTSTEPPER_R_OK;
+ bugout:
+   return stat;
+}       /* rtstepper_set_gpo() */
+
+enum RTSTEPPER_RESULT rtstepper_is_input0_triggered(struct rtstepper_app_session *ps)
+{
+   enum RTSTEPPER_RESULT stat = RTSTEPPER_R_INPUT_FALSE;
    int new_bit, old_bit;
 
    if (!ps->usbfd)
       goto bugout;
 
    old_bit = ps->old_state_bits & RTSTEPPER_STEP_STATE_INPUT0_BIT;
-   stat = RTSTEPPER_R_OK;
    if (ps->input0_abort_enabled)
    {
       new_bit = ps->state_bits & RTSTEPPER_STEP_STATE_INPUT0_BIT;
       if ((new_bit == RTSTEPPER_STEP_STATE_INPUT0_BIT) && (old_bit == 0))
       {
          /* Found input0 low to high transition. */
-         stat = RTSTEPPER_R_INPUT0_TRUE;
+         stat = RTSTEPPER_R_INPUT_TRUE;
       }
       ps->old_state_bits |= new_bit;
    }
@@ -719,21 +736,20 @@ enum RTSTEPPER_RESULT rtstepper_is_input0_triggered(struct rtstepper_app_session
 
 enum RTSTEPPER_RESULT rtstepper_is_input1_triggered(struct rtstepper_app_session *ps)
 {
-   enum RTSTEPPER_RESULT stat = RTSTEPPER_R_REQ_ERROR;
+   enum RTSTEPPER_RESULT stat = RTSTEPPER_R_INPUT_FALSE;
    int new_bit, old_bit;
 
    if (!ps->usbfd)
       goto bugout;
 
    old_bit = ps->old_state_bits & RTSTEPPER_STEP_STATE_INPUT1_BIT;
-   stat = RTSTEPPER_R_OK;
    if (ps->input1_abort_enabled)
    {
       new_bit = ps->state_bits & RTSTEPPER_STEP_STATE_INPUT1_BIT;
       if ((new_bit == RTSTEPPER_STEP_STATE_INPUT1_BIT) && (old_bit == 0))
       {
          /* Found input1 low to high transition. */
-         stat = RTSTEPPER_R_INPUT1_TRUE;
+         stat = RTSTEPPER_R_INPUT_TRUE;
       }
       ps->old_state_bits |= new_bit;
    }
@@ -744,21 +760,20 @@ enum RTSTEPPER_RESULT rtstepper_is_input1_triggered(struct rtstepper_app_session
 
 enum RTSTEPPER_RESULT rtstepper_is_input2_triggered(struct rtstepper_app_session *ps)
 {
-   enum RTSTEPPER_RESULT stat = RTSTEPPER_R_REQ_ERROR;
+   enum RTSTEPPER_RESULT stat = RTSTEPPER_R_INPUT_FALSE;
    int new_bit, old_bit;
 
    if (!ps->usbfd)
       goto bugout;
 
    old_bit = ps->old_state_bits & RTSTEPPER_STEP_STATE_INPUT2_BIT;
-   stat = RTSTEPPER_R_OK;
    if (ps->input2_abort_enabled)
    {
       new_bit = ps->state_bits & RTSTEPPER_STEP_STATE_INPUT2_BIT;
       if ((new_bit == RTSTEPPER_STEP_STATE_INPUT2_BIT) && (old_bit == 0))
       {
          /* Found input2 low to high transition. */
-         stat = RTSTEPPER_R_INPUT2_TRUE;
+         stat = RTSTEPPER_R_INPUT_TRUE;
       }
       ps->old_state_bits |= new_bit;
    }
@@ -767,6 +782,48 @@ enum RTSTEPPER_RESULT rtstepper_is_input2_triggered(struct rtstepper_app_session
    return stat;
 }       /* rtstepper_is_input2_triggered() */
 
+enum RTSTEPPER_RESULT rtstepper_input0_state(struct rtstepper_app_session *ps)
+{
+   enum RTSTEPPER_RESULT stat = RTSTEPPER_R_INPUT_FALSE;
+
+   if (!ps->usbfd)
+      goto bugout;
+
+   if (ps->old_state_bits & RTSTEPPER_STEP_STATE_INPUT0_BIT)
+      stat = RTSTEPPER_R_INPUT_TRUE;
+
+ bugout:
+   return stat;
+}       /* rtstepper_input0_state() */
+
+enum RTSTEPPER_RESULT rtstepper_input1_state(struct rtstepper_app_session *ps)
+{
+   enum RTSTEPPER_RESULT stat = RTSTEPPER_R_INPUT_FALSE;
+
+   if (!ps->usbfd)
+      goto bugout;
+
+   if (ps->old_state_bits & RTSTEPPER_STEP_STATE_INPUT1_BIT)
+      stat = RTSTEPPER_R_INPUT_TRUE;
+
+ bugout:
+   return stat;
+}       /* rtstepper_input1_state() */
+
+enum RTSTEPPER_RESULT rtstepper_input2_state(struct rtstepper_app_session *ps)
+{
+   enum RTSTEPPER_RESULT stat = RTSTEPPER_R_INPUT_FALSE;
+
+   if (!ps->usbfd)
+      goto bugout;
+
+   if (ps->old_state_bits & RTSTEPPER_STEP_STATE_INPUT2_BIT)
+      stat = RTSTEPPER_R_INPUT_TRUE;
+
+ bugout:
+   return stat;
+}       /* rtstepper_input2_state() */
+
 /* 
  * Read dongle state bits. Blocks on 1ms intervals. Returns following bitfield definitions.
  *    abort_bit = 0x1
@@ -774,14 +831,15 @@ enum RTSTEPPER_RESULT rtstepper_is_input2_triggered(struct rtstepper_app_session
  *    input0_bit = 0x8 
  *    input2_bit = 0x10 
  *    input3_bit = 0x20
- * All bits are active high: 1=yes 0=no
+ * All bits are active high: 1=true 0=false
  */
 enum RTSTEPPER_RESULT rtstepper_query_state(struct rtstepper_app_session *ps)
 {
    struct step_query query_response;
    enum RTSTEPPER_RESULT stat;
    int len;
-   static int cnt = 0;
+   static unsigned int cnt = 0;
+   static int good_query = 0;
 
    ps->state_bits = 0;
 
@@ -798,11 +856,13 @@ enum RTSTEPPER_RESULT rtstepper_query_state(struct rtstepper_app_session *ps)
                          (char *) &query_response, sizeof(query_response), LIBUSB_CONTROL_REQ_TIMEOUT);
    if (len != sizeof(query_response))
    {
-      if (cnt++ < 50)
-         BUG("invalid usb query_response len=%d\n", len);
+      if (cnt++ < 30)
+         BUG("invalid usb query_response len=%d good_query_cnt=%d\n", len, good_query);
       stat = RTSTEPPER_R_IO_ERROR;
       goto bugout;
    }
+   else
+      good_query++;
 
    ps->state_bits = query_response.state_bits._word;
    stat = RTSTEPPER_R_OK;
@@ -832,8 +892,8 @@ enum RTSTEPPER_RESULT rtstepper_init(struct rtstepper_app_session *ps, rtstepper
    ps->xfr_active = 0;
    ps->error_function = error_function;
 
-   pthread_mutex_init(&ps->mutex, NULL);
-   pthread_cond_init(&ps->write_done_cond, NULL);
+//   pthread_mutex_init(&ps->mutex, NULL);
+//   pthread_cond_init(&ps->write_done_cond, NULL);
 
    usb_init();
    usb_find_busses();
@@ -905,8 +965,8 @@ enum RTSTEPPER_RESULT rtstepper_exit(struct rtstepper_app_session *ps)
       ps->usbfd = 0;
    }
 
-   pthread_mutex_destroy(&ps->mutex);
-   pthread_cond_destroy(&ps->write_done_cond);
+//   pthread_mutex_destroy(&ps->mutex);
+//   pthread_cond_destroy(&ps->write_done_cond);
 
    return RTSTEPPER_R_OK;
 }       /* rtstepper_exit() */

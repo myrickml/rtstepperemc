@@ -61,7 +61,7 @@ static int saveToolTable(const char *filename, struct CANON_TOOL_TABLE toolTable
    if ((fp = fopen(name, "w")) == NULL)
    {
       BUG("unable to save tool table %s\n", name);
-      emcOperatorError(0, EMC_I18N("unable to save tool table %s"), name);
+      emcOperatorMessage(0, EMC_I18N("unable to save tool table %s"), name);
       return -1;
    }
 
@@ -345,22 +345,18 @@ void emciocommandHandler(emcio_command_t * emcioCommand)
 
    case EMCIO_COOLANT_MIST_ON_COMMAND:
       emcioStatus.coolant.mist = 1;
-//            *(iocontrol_data->coolant_mist) = 1;
       break;
 
    case EMCIO_COOLANT_MIST_OFF_COMMAND:
       emcioStatus.coolant.mist = 0;
-//            *(iocontrol_data->coolant_mist) = 0;
       break;
 
    case EMCIO_COOLANT_FLOOD_ON_COMMAND:
       emcioStatus.coolant.flood = 1;
-//            *(iocontrol_data->coolant_flood) = 1;
       break;
 
    case EMCIO_COOLANT_FLOOD_OFF_COMMAND:
       emcioStatus.coolant.flood = 0;
-//            *(iocontrol_data->coolant_flood) = 0;
       break;
 
    case EMCIO_AUX_ESTOP_ON_COMMAND:

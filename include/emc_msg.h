@@ -18,12 +18,13 @@
 
 enum EMC_COMMAND_MSG_TYPE
 {
-   EMC_OPERATOR_ERROR_TYPE = 1,
-   EMC_OPERATOR_TEXT_TYPE,
-   EMC_OPERATOR_DISPLAY_TYPE,
-   MAX_EMC_TO_GUI_CMD,
+   EMC_COMMAND_UNUSED = 0,
+   EMC_OPERATOR_MESSAGE_TYPE = 1,
+   EMC_COMMAND_DONE_TYPE,
+   MAX_EMC_TO_GUI_COMMAND,
 
-   EMC_STAT_TYPE,
+   /* Commands for control_thread() start here. */
+   EMC_STAT_TYPE,           
    EMC_QUIT_TYPE,
    EMC_SYSTEM_CMD_TYPE,
 
@@ -92,6 +93,8 @@ enum EMC_COMMAND_MSG_TYPE
    EMC_MOTION_ABORT_TYPE,
    EMC_MOTION_SET_AOUT_TYPE,
    EMC_MOTION_SET_DOUT_TYPE,
+   EMC_MOTION_ENABLE_DIN_ABORT_TYPE,
+   EMC_MOTION_DISABLE_DIN_ABORT_TYPE,
    EMC_MOTION_ADAPTIVE_TYPE,
    EMC_MOTION_STAT_TYPE,
 
@@ -173,32 +176,32 @@ enum EMC_COMMAND_MSG_TYPE
 /* message header */
 typedef struct _emc_msg_t
 {
-   int type;
-   int serial_number;
+   enum EMC_COMMAND_MSG_TYPE type;
+   int serial_number;  /* obsolete, DES */
    unsigned int n;              /* sequence number */
    struct list_head list;
 } emc_msg_t;
 
-typedef struct _emc_operator_error_msg_t
+typedef struct _emc_system_cmd_msg_t
 {
    emc_msg_t msg;
-   int id;
-   char error[LINELEN];
-} emc_operator_error_msg_t;
+   int index;          /* user defined mcode m100-m199 */
+   double p_number;
+   double q_number;
+} emc_system_cmd_msg_t;
 
-typedef struct _emc_operator_display_msg_t
+typedef struct _emc_command_done_msg_t
 {
    emc_msg_t msg;
-   int id;
-   char display[LINELEN];
-} emc_operator_display_msg_t;
+   unsigned int ticket;  /* sequence number of completed command */
+} emc_command_done_msg_t;
 
-typedef struct _emc_operator_text_msg_t
+typedef struct _emc_operator_message_msg_t
 {
    emc_msg_t msg;
    int id;
    char text[LINELEN];
-} emc_operator_text_msg_t;
+} emc_operator_message_msg_t;
 
 typedef struct _emc_traj_set_origin_msg_t
 {
@@ -343,11 +346,16 @@ typedef struct _emc_traj_set_fh_enable_msg_t
 typedef struct _emc_motion_set_dout_msg_t
 {
    emc_msg_t msg;
-   unsigned char index;         // which to set
-   unsigned char start;         // binary value at start
-   unsigned char end;           // binary value at end
-   unsigned char now;           // wether command is imediate or synched with motion
+   int output_num;   // output0-7
+   int value;        // 0=false, 1=true
+   int sync;        // 0=output immediately, 1=output with move command
 } emc_motion_set_dout_msg_t;
+
+typedef struct _emc_motion_din_msg_t
+{
+   emc_msg_t msg;
+   int input_num;   // input0-2
+} emc_motion_din_msg_t;
 
 typedef struct _emc_motion_set_aout_msg_t
 {
@@ -463,13 +471,13 @@ typedef struct _emc_tool_load_tool_table_msg_t
 typedef struct _emc_task_set_mode_msg_t
 {
    emc_msg_t msg;
-   enum EMC_TASK_MODE_ENUM mode;
+   enum EMC_TASK_MODE mode;
 } emc_task_set_mode_msg_t;
 
 typedef struct _emc_task_set_state_msg_t
 {
    emc_msg_t msg;
-   enum EMC_TASK_STATE_ENUM state;
+   enum EMC_TASK_STATE state;
 } emc_task_set_state_msg_t;
 
 typedef struct _emc_task_plan_open_msg_t
@@ -496,8 +504,7 @@ typedef struct _emc_command_msg_t
    union
    {
       emc_msg_t msg;
-      emc_operator_error_msg_t m1;
-      emc_operator_display_msg_t m25;
+      emc_operator_message_msg_t m1;
       emc_traj_set_origin_msg_t m3;
       emc_traj_set_rotation_msg_t m5;
       emc_traj_linear_move_msg_t m6;
@@ -524,6 +531,7 @@ typedef struct _emc_command_msg_t
       emc_tool_load_tool_table_msg_t m42;
       emc_motion_adaptive_msg_t m22;
       emc_motion_set_dout_msg_t m26;
+      emc_motion_din_msg_t m48;
       emc_motion_set_aout_msg_t m27;
       emc_aux_input_wait_msg_t m28;
       emc_axis_cmd_msg_t m30;
@@ -540,7 +548,8 @@ typedef struct _emc_command_msg_t
       emc_task_plan_open_msg_t m45;
       emc_task_plan_execute_msg_t m46;
       emc_task_plan_set_optional_stop_msg_t m47;
-      emc_operator_text_msg_t m48;
+      emc_command_done_msg_t m49;
+      emc_system_cmd_msg_t m50;
    };
 } emc_command_msg_t;
 

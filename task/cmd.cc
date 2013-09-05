@@ -1,6 +1,6 @@
 /*****************************************************************************\
 
-  cmd.c - staging support commands for EMC2
+  cmd.cc - staging support commands for EMC2
 
   Derived from a work by Fred Proctor & Will Shackleford
 
@@ -58,6 +58,11 @@
 #include "canon.h"
 #include "ini.h"
 #include "bug.h"
+#include "tinypy.h"
+
+static int emcTaskPlanExecute(const char *command);
+static int emcTaskPlanExecuteEx(const char *command, int line_number);
+static int emcTaskExecScript(int index, double p1, double p2, unsigned int ticket);
 
 static emc_task_plan_run_msg_t taskPlanRunCmd = { {EMC_TASK_PLAN_RUN_TYPE} };
 
@@ -77,7 +82,7 @@ static int programStartLine;
 static int task_plan_wait;
 static double saveMinLimit[EMCMOT_MAX_JOINTS];
 static double saveMaxLimit[EMCMOT_MAX_JOINTS];
-static int mdiOrAuto = EMC_TASK_MODE_AUTO;
+static enum EMC_TASK_MODE mdiOrAuto = EMC_TASK_MODE_AUTO;
 static double taskExecDelayTimeout;
 
 void esleep(double seconds_to_sleep)
@@ -173,7 +178,7 @@ static void print_interp_error(int retval)
    {
       BUG("interp_error: %s\n", buf);
    }
-   emcOperatorError(0, buf);
+   emcOperatorMessage(0, buf);
    DBG("Interpreter stack:\n");
    for (i = 0; i < 5; i++)
    {
@@ -194,7 +199,7 @@ static int checkInterpList(MSG_INTERP_LIST * il, emc_status_t * stat)
    emc_command_msg_t *cmd;
 
    // let's create some shortcuts to casts at compile time
-#define operator_error_msg ((emc_operator_error_msg_t *)cmd)
+#define operator_msg ((emc_operator_message_msg_t *)cmd)
 #define linear_move ((emc_traj_linear_move_msg_t *)cmd)
 #define circular_move ((emc_traj_circular_move_msg_t *)cmd)
 
@@ -204,70 +209,70 @@ static int checkInterpList(MSG_INTERP_LIST * il, emc_status_t * stat)
 
       switch (cmd->msg.type)
       {
-      case EMC_OPERATOR_ERROR_TYPE:
-         emcOperatorError(operator_error_msg->id, operator_error_msg->error);
+      case EMC_OPERATOR_MESSAGE_TYPE:
+         emcOperatorMessage(operator_msg->id, operator_msg->text);
          break;
       case EMC_TRAJ_LINEAR_MOVE_TYPE:
          if (linear_move->end.tran.x > stat->motion.axis[0].maxPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds +X limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds +X limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          if (linear_move->end.tran.y > stat->motion.axis[1].maxPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds +Y limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds +Y limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          if (linear_move->end.tran.z > stat->motion.axis[2].maxPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds +Z limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds +Z limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          if (linear_move->end.tran.x < stat->motion.axis[0].minPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds -X limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds -X limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          if (linear_move->end.tran.y < stat->motion.axis[1].minPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds -Y limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds -Y limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          if (linear_move->end.tran.z < stat->motion.axis[2].minPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds -Z limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds -Z limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          break;
       case EMC_TRAJ_CIRCULAR_MOVE_TYPE:
          if (circular_move->end.tran.x > stat->motion.axis[0].maxPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds +X limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds +X limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          if (circular_move->end.tran.y > stat->motion.axis[1].maxPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds +Y limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds +Y limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          if (circular_move->end.tran.z > stat->motion.axis[2].maxPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds +Z limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds +Z limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          if (circular_move->end.tran.x < stat->motion.axis[0].minPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds -X limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds -X limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          if (circular_move->end.tran.y < stat->motion.axis[1].minPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds -Y limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds -Y limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          if (circular_move->end.tran.z < stat->motion.axis[2].minPositionLimit)
          {
-            emcOperatorError(0, EMC_I18N("%s exceeds -Z limit"), stat->task.command);
+            emcOperatorMessage(0, EMC_I18N("%s exceeds -Z limit"), stat->task.command);
             return EMC_R_ERROR;
          }
          break;
@@ -428,7 +433,7 @@ static void readahead_waiting(void)
   COORD       MDI           MDI
   COORD       AUTO          AUTO
   */
-static int determineMode()
+static enum EMC_TASK_MODE determineMode()
 {
    // if traj is in free mode, then we're in manual mode
    if (emcStatus->motion.traj.mode == EMC_TRAJ_MODE_FREE || emcStatus->motion.traj.mode == EMC_TRAJ_MODE_TELEOP)
@@ -449,7 +454,7 @@ static int determineMode()
   DISABLED       OUT OF ESTOP  ESTOP_RESET
   ENABLED        OUT OF ESTOP  ON
   */
-static int determineState()
+static enum EMC_TASK_STATE determineState()
 {
    if (emcStatus->io.aux.estop)
    {
@@ -483,10 +488,8 @@ int emc_is_tp_done(struct emc_session *ps)
    return stat;
 }       /* is_tp_done() */
 
-static void control_cycle_thread(struct emc_session *ps)
+static void _run_control_cycle(struct emc_session *ps)
 {
-   pthread_detach(pthread_self());
-
    do
    {
       /* Run operating mode changes, trajectory and interpolation control cycles. */
@@ -502,6 +505,13 @@ static void control_cycle_thread(struct emc_session *ps)
 
    /* Start a new write. */
    rtstepper_start_xfr(&ps->dongle, tpGetExecId(&emcmotDebug.queue), emcmotStatus.traj.axes);
+} /* _run_control_cycle() */
+
+static void control_cycle_thread(struct emc_session *ps)
+{
+   pthread_detach(pthread_self());
+
+   _run_control_cycle(ps);
 
    pthread_mutex_lock(&ps->mutex);
    ps->control_cycle_thread_active = 0;
@@ -511,7 +521,8 @@ static void control_cycle_thread(struct emc_session *ps)
    return;
 } /* control_cycle_thread() */
 
-static int emcmotWriteCommand(emcmot_command_t * c)
+/* Asynchronous IO write command. Called by control_thread(). Used by motion commands. */
+static int _emc_aio_write_command(emcmot_command_t *c)
 {
    struct emc_session *ps = &session;
    static int commandNum = 0;
@@ -519,6 +530,7 @@ static int emcmotWriteCommand(emcmot_command_t * c)
    int stat = EMC_R_ERROR;
 
 //   DBG("emcmotWriteCommand()\n");
+
    c->head = ++headCount;
    c->tail = c->head;
    c->commandNum = ++commandNum;
@@ -548,29 +560,63 @@ static int emcmotWriteCommand(emcmot_command_t * c)
 
 bugout:
    return stat;
-}       /* emcmotWriteCommand() */
+}       /* _emc_aio_write_command() */
 
-int emcOperatorError(int id, const char *fmt, ...)
+/* Synchronous IO write command. Called by control_thread(). Used by immediate commands.  */
+static int _emc_sio_write_command(emcmot_command_t *c)
 {
-   emc_command_msg_t error_msg;
-   emc_operator_error_msg_t *op_err;
+   struct emc_session *ps = &session;
+   static int commandNum = 0;
+   static unsigned char headCount = 0;
+   int stat = EMC_R_ERROR;
+
+//   DBG("emcmotWriteCommand()\n");
+
+   c->head = ++headCount;
+   c->tail = c->head;
+   c->commandNum = ++commandNum;
+
+   emcmotCommandHandler(c);
+
+   if (emcmotStatus.commandStatus != EMCMOT_COMMAND_OK)
+   {
+      BUG("invalid emcmotCommandHandler command\n");
+      goto bugout;      /* bail */
+   }
+
+   /* Wait for any previous control_cycle_thread to finish. */
+   pthread_mutex_lock(&ps->mutex);
+   while (ps->control_cycle_thread_active)
+      pthread_cond_wait(&ps->control_cycle_thread_done_cond, &ps->mutex);
+   pthread_mutex_unlock(&ps->mutex);
+
+   _run_control_cycle(ps);
+
+   stat = EMC_R_OK;
+
+bugout:
+   return stat;
+}       /* _emc_sio_write_command() */
+
+int emcOperatorMessage(int id, const char *fmt, ...)
+{
+   emc_command_msg_t message;
+   emc_operator_message_msg_t *op_message;
    struct emc_session *ps = &session;
    va_list args;
-   int n, max;
 
-   op_err = (emc_operator_error_msg_t *) & error_msg;
-   op_err->msg.type = EMC_OPERATOR_ERROR_TYPE;
-   max = sizeof(op_err->error);
+   op_message = (emc_operator_message_msg_t *) &message;
+   op_message->msg.type = EMC_OPERATOR_MESSAGE_TYPE;
 
    va_start(args, fmt);
-   if ((n = vsnprintf(op_err->error, max, fmt, args)) == max)
-      op_err->error[max - 1] = 0;       /* output was truncated */
+   vsnprintf(op_message->text, sizeof(op_message->text), fmt, args);
+   op_message->text[sizeof(op_message->text) - 1] = 0;       /* force zero termination */
 
-   send_message(ps, &error_msg, "ctl");
+   send_message(ps, &message, _ctl_tag);
    va_end(args);
 
    return EMC_R_OK;
-}       /* emcOperatorError() */
+}       /* emcOperatorMessage() */
 
 /* Called from rt-stepper usb bulk write thread. */
 int emc_io_error_cb(int result)
@@ -580,12 +626,15 @@ int emc_io_error_cb(int result)
    struct emc_session *ps = &session;
 
    BUG("USB data write error=%d estop...\n", result);
-   emcOperatorError(0, EMC_I18N("USB data write error=%d ESTOP..."), result);
+   emcOperatorMessage(0, EMC_I18N("USB data write error=%d ESTOP..."), result);
 
-   cmd = (emc_task_set_state_msg_t *) & mb;
-   cmd->msg.type = EMC_TASK_SET_STATE_TYPE;
-   cmd->state = EMC_TASK_STATE_ESTOP;
-   send_message(ps, &mb, "rts");
+   if (emcStatus->task.state != EMC_TASK_STATE_ESTOP)
+   {
+      cmd = (emc_task_set_state_msg_t *) & mb;
+      cmd->msg.type = EMC_TASK_SET_STATE_TYPE;
+      cmd->state = EMC_TASK_STATE_ESTOP;
+      send_message(ps, &mb, "rts");
+   }
 
    return 0;
 }       /* emc_io_error_cb() */
@@ -599,14 +648,8 @@ void emcInitGlobals()
 
 int emcToolSetToolTableFile(const char *filename)
 {
-   const char *hdir;
-
-   if ((hdir = getenv("HOME")) == NULL)
-      hdir = "";        /* no $HOME directory, default to top level */
-   snprintf(TOOL_TABLE_FILE, sizeof(TOOL_TABLE_FILE), "%s/.%s/%s", hdir, PACKAGE_NAME, filename);
+   snprintf(TOOL_TABLE_FILE, sizeof(TOOL_TABLE_FILE), "%s/.%s/%s", USER_HOME_DIR, PACKAGE_NAME, filename);
    BUG("using TOOL_TABLE_FILE:%s:\n", TOOL_TABLE_FILE);
-//    strcpy(TOOL_TABLE_FILE, filename);
-
    return EMC_R_OK;
 }       /* emcToolSetToolTableFile() */
 
@@ -640,7 +683,7 @@ int emcIoInit()
    emcioStatus.lube.on = 0;
    emcioStatus.lube.level = 1;
 
-   if ((retval = iniTool(EMC_INIFILE)) != EMC_R_OK)
+   if ((retval = iniTool()) != EMC_R_OK)
    {
       return retval;
    }
@@ -773,7 +816,7 @@ int emcAxisInit(int axis)
       return EMC_R_ERROR;
    }
 
-   if ((retval = iniAxis(axis, EMC_INIFILE)) != EMC_R_OK)
+   if ((retval = iniAxis(axis)) != EMC_R_OK)
    {
       BUG("iniAxis() failed ini=%s\n", EMC_INIFILE);
    }
@@ -793,7 +836,7 @@ int emcAxisSetBacklash(int axis, double backlash)
    emcmotCommand.command = EMCMOT_SET_BACKLASH;
    emcmotCommand.axis = axis;
    emcmotCommand.backlash = backlash;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetBacklash() */
 
 int emcAxisSetMinPositionLimit(int axis, double limit)
@@ -809,7 +852,7 @@ int emcAxisSetMinPositionLimit(int axis, double limit)
    emcmotCommand.maxLimit = saveMaxLimit[axis];
    emcmotCommand.minLimit = limit;
    saveMinLimit[axis] = limit;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetMinPositionLimit() */
 
 int emcAxisSetMaxPositionLimit(int axis, double limit)
@@ -825,7 +868,7 @@ int emcAxisSetMaxPositionLimit(int axis, double limit)
    emcmotCommand.minLimit = saveMinLimit[axis];
    emcmotCommand.maxLimit = limit;
    saveMaxLimit[axis] = limit;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetMaxPositionLimit() */
 
 int emcAxisSetFerror(int axis, double ferror)
@@ -839,7 +882,7 @@ int emcAxisSetFerror(int axis, double ferror)
    emcmotCommand.command = EMCMOT_SET_MAX_FERROR;
    emcmotCommand.axis = axis;
    emcmotCommand.maxFerror = ferror;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetFerror() */
 
 int emcAxisSetMinFerror(int axis, double ferror)
@@ -853,7 +896,7 @@ int emcAxisSetMinFerror(int axis, double ferror)
    emcmotCommand.command = EMCMOT_SET_MIN_FERROR;
    emcmotCommand.axis = axis;
    emcmotCommand.minFerror = ferror;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetMinFerror() */
 
 int emcAxisSetHomingParams(int axis, double home, double offset, double home_final_vel, double search_vel, double latch_vel,
@@ -883,7 +926,7 @@ int emcAxisSetHomingParams(int axis, double home, double offset, double home_fin
    if (is_shared)
       emcmotCommand.flags |= HOME_IS_SHARED;
 
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetHomingParams() */
 
 int emcAxisSetMaxVelocity(int axis, double vel)
@@ -895,7 +938,7 @@ int emcAxisSetMaxVelocity(int axis, double vel)
    emcmotCommand.command = EMCMOT_SET_JOINT_VEL_LIMIT;
    emcmotCommand.axis = axis;
    emcmotCommand.vel = vel;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetMaxVelocity() */
 
 int emcAxisSetMaxAcceleration(int axis, double acc)
@@ -907,7 +950,7 @@ int emcAxisSetMaxAcceleration(int axis, double acc)
    emcmotCommand.command = EMCMOT_SET_JOINT_ACC_LIMIT;
    emcmotCommand.axis = axis;
    emcmotCommand.acc = acc;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetMaxAcceleration() */
 
 int emcAxisSetInputScale(int axis, double scale)
@@ -916,7 +959,7 @@ int emcAxisSetInputScale(int axis, double scale)
    emcmotCommand.command = EMCMOT_SET_INPUT_SCALE;
    emcmotCommand.axis = axis;
    emcmotCommand.scale = scale;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetInputScale() */
 
 int emcAxisSetStepPin(int axis, int pin)
@@ -927,7 +970,7 @@ int emcAxisSetStepPin(int axis, int pin)
    emcmotCommand.command = EMCMOT_SET_STEP_PIN;
    emcmotCommand.axis = axis;
    emcmotCommand.pin = pin;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetStepPin() */
 
 int emcAxisSetDirectionPin(int axis, int pin)
@@ -938,7 +981,7 @@ int emcAxisSetDirectionPin(int axis, int pin)
    emcmotCommand.command = EMCMOT_SET_DIRECTION_PIN;
    emcmotCommand.axis = axis;
    emcmotCommand.pin = pin;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetStepPin() */
 
 int emcAxisSetStepPolarity(int axis, int polarity)
@@ -949,7 +992,7 @@ int emcAxisSetStepPolarity(int axis, int polarity)
    emcmotCommand.command = EMCMOT_SET_STEP_POLARITY;
    emcmotCommand.axis = axis;
    emcmotCommand.polarity = polarity;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetStepPolarity() */
 
 int emcAxisSetDirectionPolarity(int axis, int polarity)
@@ -960,7 +1003,7 @@ int emcAxisSetDirectionPolarity(int axis, int polarity)
    emcmotCommand.command = EMCMOT_SET_DIRECTION_POLARITY;
    emcmotCommand.axis = axis;
    emcmotCommand.polarity = polarity;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisSetDirectionPolarity() */
 
 int emcAxisSetAxis(int axis, unsigned char axisType)
@@ -986,7 +1029,7 @@ int emcAxisHome(int axis)
       return EMC_R_ERROR;
    emcmotCommand.command = EMCMOT_HOME;
    emcmotCommand.axis = axis;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisHome() */
 
 int emcAxisUnhome(int axis)
@@ -996,7 +1039,7 @@ int emcAxisUnhome(int axis)
       return EMC_R_ERROR;
    emcmotCommand.command = EMCMOT_UNHOME;
    emcmotCommand.axis = axis;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisUnhome() */
 
 int emcAxisJog(int axis, double vel)
@@ -1013,12 +1056,12 @@ int emcAxisJog(int axis, double vel)
    emcmotCommand.command = EMCMOT_JOG_CONT;
    emcmotCommand.axis = axis;
    emcmotCommand.vel = vel;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_aio_write_command(&emcmotCommand);
 }       /* emcAxisJog() */
 
 int emcAxisIncrJog(int axis, double incr, double vel)
 {
-   DBG("emcAxisIncrJog() axis=%d\n", axis);
+   DBG("emcAxisIncrJog() axis=%d incr=%0.8f vel=%0.8f\n", axis, incr, vel);
    if (axis < 0 || axis >= EMCMOT_MAX_JOINTS)
       return EMC_R_ERROR;
 
@@ -1031,12 +1074,12 @@ int emcAxisIncrJog(int axis, double incr, double vel)
    emcmotCommand.axis = axis;
    emcmotCommand.vel = vel;
    emcmotCommand.offset = incr;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_aio_write_command(&emcmotCommand);
 }       /* emcAxisIncrJog() */
 
 int emcAxisAbsJog(int axis, double pos, double vel)
 {
-   DBG("emcAxisAbsJog() axis=%d\n", axis);
+   DBG("emcAxisAbsJog() axis=%d pos=%0.8f vel=%0.8f\n", axis, pos, vel);
    if (axis < 0 || axis >= EMCMOT_MAX_JOINTS)
       return EMC_R_ERROR;
 
@@ -1049,7 +1092,7 @@ int emcAxisAbsJog(int axis, double pos, double vel)
    emcmotCommand.axis = axis;
    emcmotCommand.vel = vel;
    emcmotCommand.offset = pos;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_aio_write_command(&emcmotCommand);
 }       /* emcAxisAbsJog() */
 
 int emcAxisActivate(int axis)
@@ -1057,7 +1100,7 @@ int emcAxisActivate(int axis)
    DBG("emcAxisActivate() axis=%d\n", axis);
    emcmotCommand.command = EMCMOT_ACTIVATE_JOINT;
    emcmotCommand.axis = axis;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcAxisActivate() */
 
 int emcAxisHalt(int axis)
@@ -1079,7 +1122,7 @@ int emcAxisEnable(int axis)
    DBG("emcAxisEnable() axis=%d\n", axis);
    emcmotCommand.command = EMCMOT_ENABLE_AMPLIFIER;
    emcmotCommand.axis = axis;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }
 
 int emcAxisDisable(int axis)
@@ -1087,7 +1130,7 @@ int emcAxisDisable(int axis)
    DBG("emcAxisDisable() axis=%d\n", axis);
    emcmotCommand.command = EMCMOT_DISABLE_AMPLIFIER;
    emcmotCommand.axis = axis;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }
 
 int emcAxisAbort(int axis)
@@ -1095,7 +1138,7 @@ int emcAxisAbort(int axis)
    DBG("emcAxisAbort() axis=%d\n", axis);
    emcmotCommand.command = EMCMOT_AXIS_ABORT;
    emcmotCommand.axis = axis;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }
 
 int emcMotionInit()
@@ -1356,26 +1399,20 @@ int emcTrajSetAxes(int axes, int axismask)
       return EMC_R_ERROR;
    }
 
-//    localEmcTrajAxes = axes;
-//    localEmcTrajAxisMask = axismask;
    emcmotStatus.traj.axes = axes;
    emcmotStatus.traj.axis_mask = axismask;
-//    emcmotCommand.command = EMCMOT_SET_NUM_AXES;
-//    emcmotCommand.axis = axes;
-//    return usrmotWriteEmcmotCommand(&emcmotCommand);
+
    return EMC_R_OK;
 }       /* emcTrajSetAxes() */
 
 int emcTrajSetUnits(double linearUnits, double angularUnits)
 {
-   DBG("emcTrajSetUnits()\n");
+   DBG("emcTrajSetUnits() linearUnits=%0.8f angularUnits=%0.8f\n", linearUnits, angularUnits);
    if (linearUnits <= 0.0 || angularUnits <= 0.0)
    {
       return EMC_R_ERROR;
    }
 
-//    localEmcTrajLinearUnits = linearUnits;
-//    localEmcTrajAngularUnits = angularUnits;
    emcmotStatus.traj.linearUnits = linearUnits;
    emcmotStatus.traj.angularUnits = angularUnits;
 
@@ -1387,11 +1424,6 @@ int emcTrajUpdate(emctraj_status_t * stat)
    struct emc_session *ps = &session;
    int enables;
 
-//    stat->axes = localEmcTrajAxes;
-//    stat->axis_mask = localEmcTrajAxisMask;
-//    stat->linearUnits = localEmcTrajLinearUnits;
-//    stat->angularUnits = localEmcTrajAngularUnits;
-
    stat->axes = emcmotStatus.traj.axes;
    stat->axis_mask = emcmotStatus.traj.axis_mask;
    stat->linearUnits = emcmotStatus.traj.linearUnits;
@@ -1400,21 +1432,10 @@ int emcTrajUpdate(emctraj_status_t * stat)
    stat->mode = emcmotStatus.motionFlag & EMCMOT_MOTION_TELEOP_BIT ? EMC_TRAJ_MODE_TELEOP
       : (emcmotStatus.motionFlag & EMCMOT_MOTION_COORD_BIT ? EMC_TRAJ_MODE_COORD : EMC_TRAJ_MODE_FREE);
 
-   /* enabled if motion enabled and all axes enabled */
    stat->enabled = 0;   /* start at disabled */
    if (emcmotStatus.motionFlag & EMCMOT_MOTION_ENABLE_BIT)
    {
-//        for (axis = 0; axis < localEmcTrajAxes; axis++) {
-/*! \todo Another #if 0 */
-#if 0   /*! \todo FIXME - the axis flag has been moved to the joint struct */
-      if (!emcmotStatus.axisFlag[axis] & EMCMOT_JOINT_ENABLE_BIT)
-      {
-         break;
-      }
-#endif
-      /* got here, then all are enabled */
       stat->enabled = 1;
-//        }
    }
 
    stat->inpos = emcmotStatus.motionFlag & EMCMOT_MOTION_INPOS_BIT;
@@ -1470,9 +1491,6 @@ int emcTrajUpdate(emctraj_status_t * stat)
 
    if (new_config)
    {
-//        stat->cycleTime = emcmotConfig.trajCycleTime;
-//        stat->kinematics_type = emcmotConfig.kinematics_type;
-//        stat->maxVelocity = emcmotConfig.limitVel;
       stat->cycleTime = emcmotStatus.traj.cycleTime;
       stat->kinematics_type = emcmotStatus.traj.kinematics_type;
       stat->maxVelocity = emcmotStatus.traj.maxVelocity;
@@ -1488,7 +1506,7 @@ int emcTrajInit()
    DBG("emcTrajInit()\n");
 
    // initialize parameters from ini file
-   if ((retval = iniTraj(EMC_INIFILE)) != EMC_R_OK)
+   if ((retval = iniTraj()) != EMC_R_OK)
    {
       BUG("iniTraj() failed ini=%s\n", EMC_INIFILE);
    }
@@ -1499,7 +1517,7 @@ int emcTrajAbort()
 {
    DBG("emcTrajAbort()\n");
    emcmotCommand.command = EMCMOT_ABORT;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }
 
 int emcTrajSetVelocity(double vel, double ini_maxvel)
@@ -1517,7 +1535,7 @@ int emcTrajSetVelocity(double vel, double ini_maxvel)
    emcmotCommand.command = EMCMOT_SET_VEL;
    emcmotCommand.vel = vel;
    emcmotCommand.ini_maxvel = ini_maxvel;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcTrajSetVelocity() */
 
 int emcTrajSetAcceleration(double acc)
@@ -1529,7 +1547,7 @@ int emcTrajSetAcceleration(double acc)
       acc = emcmotStatus.traj.maxAcceleration;
    emcmotCommand.command = EMCMOT_SET_ACC;
    emcmotCommand.acc = acc;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcTrajSetAcceleration() */
 
 int emcTrajSetMaxVelocity(double vel)
@@ -1539,7 +1557,7 @@ int emcTrajSetMaxVelocity(double vel)
       vel = 0.0;
    emcmotCommand.command = EMCMOT_SET_VEL_LIMIT;
    emcmotCommand.vel = vel;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcTrajSetMaxVelocity() */
 
 int emcTrajSetMaxAcceleration(double acc)
@@ -1562,35 +1580,35 @@ int emcTrajSetHome(EmcPose home)
 
    emcmotCommand.command = EMCMOT_SET_WORLD_HOME;
    emcmotCommand.pos = home;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcTrajSetHome() */
 
 int emcTrajPause()
 {
    DBG("emcTrajPause()\n");
    emcmotCommand.command = EMCMOT_PAUSE;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcTrajPause() */
 
 int emcTrajStep()
 {
    DBG("emcTrajStep()\n");
    emcmotCommand.command = EMCMOT_STEP;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcTrajStep() */
 
 int emcTrajEnable()
 {
    DBG("emcTrajEnable()\n");
    emcmotCommand.command = EMCMOT_ENABLE;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcTrajEnable() */
 
 int emcTrajDisable()
 {
    DBG("emcTrajDisable()\n");
    emcmotCommand.command = EMCMOT_DISABLE;
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_sio_write_command(&emcmotCommand);
 }       /* emcTrajDisable() */
 
 int emcTrajLinearMove(EmcPose end, int type, double vel, double ini_maxvel, double acc)
@@ -1613,7 +1631,7 @@ int emcTrajLinearMove(EmcPose end, int type, double vel, double ini_maxvel, doub
    emcmotCommand.ini_maxvel = ini_maxvel;
    emcmotCommand.acc = acc;
 
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_aio_write_command(&emcmotCommand);
 } /* emcTrajLinearMove() */
 
 int emcTrajCircularMove(EmcPose end, PmCartesian center, PmCartesian normal, int turn, int type, double vel, double ini_maxvel, double acc)
@@ -1644,35 +1662,39 @@ int emcTrajCircularMove(EmcPose end, PmCartesian center, PmCartesian normal, int
    emcmotCommand.ini_maxvel = ini_maxvel;
    emcmotCommand.acc = acc;
 
-   return emcmotWriteCommand(&emcmotCommand);
+   return _emc_aio_write_command(&emcmotCommand);
 } /* emcTrajCircularMove() */
 
 int emcCoolantMistOn()
 {
-   emcio_command_t emcioCommand;
-   emcioCommand.type = EMCIO_COOLANT_MIST_ON_COMMAND;
-   return sendCommand(&emcioCommand);
+//   emcio_command_t emcioCommand;
+//   emcioCommand.type = EMCIO_COOLANT_MIST_ON_COMMAND;
+//   return sendCommand(&emcioCommand);
+   return emcTaskExecScript(7, 0.0, 0.0, 0);   /* execute m7.py script */
 }       /* emcCoolantMistOn() */
 
 int emcCoolantMistOff()
 {
-   emcio_command_t emcioCommand;
-   emcioCommand.type = EMCIO_COOLANT_MIST_OFF_COMMAND;
-   return sendCommand(&emcioCommand);
+//   emcio_command_t emcioCommand;
+//   emcioCommand.type = EMCIO_COOLANT_MIST_OFF_COMMAND;
+//   return sendCommand(&emcioCommand);
+   return emcTaskExecScript(9, 1.0, 0.0, 0);   /* execute m9.py script */
 }       /* emcCoolantMistOn() */
 
 int emcCoolantFloodOn()
 {
-   emcio_command_t emcioCommand;
-   emcioCommand.type = EMCIO_COOLANT_FLOOD_ON_COMMAND;
-   return sendCommand(&emcioCommand);
+//   emcio_command_t emcioCommand;
+//   emcioCommand.type = EMCIO_COOLANT_FLOOD_ON_COMMAND;
+//   return sendCommand(&emcioCommand);
+   return emcTaskExecScript(8, 0.0, 0.0, 0);   /* execute m8.py script */
 }       /* emcCoolantFloodOn() */
 
 int emcCoolantFloodOff()
 {
-   emcio_command_t emcioCommand;
-   emcioCommand.type = EMCIO_COOLANT_FLOOD_OFF_COMMAND;
-   return sendCommand(&emcioCommand);
+//   emcio_command_t emcioCommand;
+//   emcioCommand.type = EMCIO_COOLANT_FLOOD_OFF_COMMAND;
+//   return sendCommand(&emcioCommand);
+   return emcTaskExecScript(9, 2.0, 0.0, 0);   /* execute m9.py script */
 }       /* emcCoolantFloodOff() */
 
 int emcLubeOn()
@@ -1692,8 +1714,9 @@ int emcLubeOff()
 int emcSpindleOff()
 {
    DBG("emcSpindleOff()\n");
-   emcmotCommand.command = EMCMOT_SPINDLE_OFF;
-   return emcmotWriteCommand(&emcmotCommand);
+//   emcmotCommand.command = EMCMOT_SPINDLE_OFF;
+//   return _emc_sio_write_command(&emcmotCommand);
+   return emcTaskExecScript(5, 0.0, 0.0, 0);         /* execute m5.py script */
 }       /* emcSpindleOff() */
 
 #if 0
@@ -1704,6 +1727,107 @@ int emcTaskInit()
    return EMC_R_OK;
 }       /* emcTaskInit() */
 #endif
+
+/* Called when the tinypy VM finds a script error. */
+static int mcode_exception_cb(int result)
+{
+   struct emc_session *ps = &session;
+   DBG("[%d] mcode_exeception_cb() completed\n", pthread_self());
+
+   pthread_mutex_lock(&ps->mutex);
+   ps->mcode_thread_active--;
+   if (ps->mcode_thread_active == 0)
+      pthread_cond_signal(&ps->mcode_thread_done_cond);
+   pthread_mutex_unlock(&ps->mutex);
+
+   pthread_exit(NULL);
+   return 0;
+}
+
+static void mcode_thread(struct mcode_args_t *ma)
+{
+   struct emc_session *ps = &session;
+   struct tp_vm *tp;
+   int argc;
+   char *argv[4];
+   char sz[LINELEN];
+   char sz_p1[16];
+   char sz_p2[16];
+
+   pthread_detach(pthread_self());
+
+   snprintf(sz, sizeof(sz), "%s/m%d.py", EMC_PROGRAM_PREFIX, ma->index);
+   snprintf(sz_p1, sizeof(sz_p1), "%0.8f", ma->p1);
+   sz_p1[sizeof(sz_p1)-1] = 0;
+   snprintf(sz_p2, sizeof(sz_p2), "%0.8f", ma->p2);
+   sz_p2[sizeof(sz_p2)-1] = 0;
+   free(ma);
+
+   DBG("[%d] mcode_thread() started %s\n", pthread_self(), sz);
+   argv[0] = (char *)"tinypy";
+   argv[1] = sz;
+   argv[2] = sz_p1;
+   argv[3] = sz_p2;
+   argc = 4;
+
+   tp = tp_init(argc, argv, mcode_exception_cb); /* specify script file name via argv */
+   rtstepperpy_init(tp);             /* init tinypy rtstepper module */
+   tp_call(tp,"py2bc","tinypy", tp_None);   /* execute tinypy script */
+   tp_deinit(tp);
+
+   DBG("[%d] mcode_thread() completed %s\n", pthread_self(), sz);
+
+   pthread_mutex_lock(&ps->mutex);
+   ps->mcode_thread_active--;
+   if (ps->mcode_thread_active == 0)
+      pthread_cond_signal(&ps->mcode_thread_done_cond);
+   pthread_mutex_unlock(&ps->mutex);
+
+   return;
+} /* mcode_thread() */
+
+int emcTaskExecScript(int index, double p1, double p2, unsigned int ticket)
+{
+   struct emc_session *ps = &session;
+   struct mcode_args_t *ma;
+   enum EMC_RESULT stat = EMC_R_ERROR;
+   FILE *fd;
+   char sz[LINELEN];
+
+   /* Make sure we can open the mcode script file. */
+   snprintf(sz, sizeof(sz), "%s/m%d.py", EMC_PROGRAM_PREFIX, index);
+   if ((fd = fopen(sz, "r")) == NULL)
+   {
+      BUG("unable to open mcode script %s\n", sz);
+      emcOperatorMessage(0, EMC_I18N("unable to open mcode script %s"), sz);
+      goto bugout;
+   }
+   fclose(fd);
+
+   if ((ma = (struct mcode_args_t *)malloc(sizeof(struct mcode_args_t))) == NULL)
+      goto bugout;
+
+   DBG("emcTaskExecScript() file=%s p1=%0.8f p2=%0.8f\n", sz, p1, p2);
+
+   ma->index = index;
+   ma->p1 = p1;
+   ma->p2 = p2;
+   ma->ticket = ticket;
+
+   pthread_mutex_lock(&ps->mutex);
+   ps->mcode_thread_active++;
+   pthread_mutex_unlock(&ps->mutex);
+   if (pthread_create(&ps->mcode_thread_tid, NULL, (void *(*)(void *))mcode_thread, (void *)ma) != 0)
+   {
+      BUG("unable to creat mcode_thread\n");
+      goto bugout;      /* bail */
+   }
+
+   stat = EMC_R_OK;
+
+bugout:
+   return stat;
+} /* emcTaskExecScript() */
 
 int emcTaskAbort()
 {
@@ -1738,16 +1862,8 @@ int emcTaskAbort()
 
 int emcTaskUpdate(emctask_status_t * stat)
 {
-   int oldstate = stat->state;
-   stat->mode = (enum EMC_TASK_MODE_ENUM) determineMode();
-   stat->state = (enum EMC_TASK_STATE_ENUM) determineState();
-
-   if (oldstate == EMC_TASK_STATE_ON && oldstate != stat->state)
-   {
-      emcTaskAbort();
-      emcSpindleOff();
-      emcIoAbort();
-   }
+   stat->mode = (enum EMC_TASK_MODE) determineMode();
+   stat->state = (enum EMC_TASK_STATE) determineState();
 
    if (emcStatus->motion.traj.id > 0)
       stat->motionLine = emcStatus->motion.traj.id;     /* line number */
@@ -1774,23 +1890,26 @@ static int emcTaskSetMode(int mode)
    {
    case EMC_TASK_MODE_MANUAL:
       // go to manual mode
+      DBG("emcTaskSetMode(EMC_TASK_MODE_MANUAL)\n");
       emcmotCommand.command = EMCMOT_FREE;
-      retval = emcmotWriteCommand(&emcmotCommand);
+      retval = _emc_sio_write_command(&emcmotCommand);
       mdiOrAuto = EMC_TASK_MODE_AUTO;   // we'll default back to here
       break;
    case EMC_TASK_MODE_MDI:
       // go to mdi mode
+      DBG("emcTaskSetMode(EMC_TASK_MODE_MDI)\n");
       emcmotCommand.command = EMCMOT_COORD;
-      retval = emcmotWriteCommand(&emcmotCommand);
-      emcTaskAbort();
+      retval = _emc_sio_write_command(&emcmotCommand);
+//      emcTaskAbort();
       interp.synch();
       mdiOrAuto = EMC_TASK_MODE_MDI;
       break;
    case EMC_TASK_MODE_AUTO:
       // go to auto mode
+      DBG("emcTaskSetMode(EMC_TASK_MODE_AUTO)\n");
       emcmotCommand.command = EMCMOT_COORD;
-      retval = emcmotWriteCommand(&emcmotCommand);
-      emcTaskAbort();
+      retval = _emc_sio_write_command(&emcmotCommand);
+//      emcTaskAbort();
       interp.synch();
       mdiOrAuto = EMC_TASK_MODE_AUTO;
       break;
@@ -1812,6 +1931,7 @@ int emcTaskSetState(int state)
    switch (state)
    {
    case EMC_TASK_STATE_OFF:
+      DBG("emcTaskSetState(EMC_TASK_STATE_OFF)\n");
       emcMotionAbort();
       // turn the machine servos off-- go into READY state
       //        emcSpindleAbort();
@@ -1828,30 +1948,31 @@ int emcTaskSetState(int state)
       break;
    case EMC_TASK_STATE_ON:
       // turn the machine servos on
+      DBG("emcTaskSetState(EMC_TASK_STATE_ON)\n");
       emcTrajEnable();
       for (i = 0; i < emcmotStatus.traj.axes; i++)
          emcAxisEnable(i);
       emcLubeOn();
       break;
    case EMC_TASK_STATE_ESTOP_RESET:
-      BUG("reset estop\n");
+      BUG("emcTaskSetState(EMC_TASK_STATE_ESTOP_RESET)\n");
       emcAuxEstopOff();
-      emcLubeOff();
-      emcTaskAbort();
-      emcIoAbort();
-      emcSpindleOff();
+      //      emcLubeOff();
+      //      emcTaskAbort();
+      //      emcIoAbort();
+      //      emcSpindleOff();
       emcStatus->io.aux.estop = 0;
 
       if (!rtstepper_is_connected(&ps->dongle))
       {
          if (rtstepper_init(&ps->dongle, emc_io_error_cb) != RTSTEPPER_R_OK)
          {
-            emcOperatorError(0, EMC_I18N("unable to connect to rt-stepper dongle"));
+            emcOperatorMessage(0, EMC_I18N("unable to connect to rt-stepper dongle"));
             emcStatus->io.aux.estop = 1;
          }
          else
          {
-            emcOperatorError(0, EMC_I18N("sucessfully connected to rt-stepper dongle"));
+            emcOperatorMessage(0, EMC_I18N("sucessfully connected to rt-stepper dongle"));
          }
       }
       rtstepper_clear_abort(&ps->dongle);   /* clear any outstanding abort */
@@ -1859,7 +1980,7 @@ int emcTaskSetState(int state)
       interp.synch();
       break;
    case EMC_TASK_STATE_ESTOP:
-      BUG("set estop\n");
+      BUG("emcTaskSetState(EMC_TASK_STATE_ESTOP)\n");
       if (ps->control_cycle_thread_active)
       {
          pthread_cancel(ps->control_cycle_thread_tid); /* kill trajectory planner now */
@@ -1895,10 +2016,11 @@ int emcTaskSetState(int state)
    return retval;
 }       /* emcTaskSetState() */
 
-// Issue command immediately to motion controller.
+// Used by emcTaskPlan() and by emcTaskExecute(). Issue command immediately to motion controller.
 static int emcTaskIssueCommand(emc_command_msg_t * cmd)
 {
    emcio_command_t emcioCommand;
+   double speed;
    int retval = EMC_R_ERROR;
    int execRetval = 0;
    int mode;
@@ -1910,8 +2032,8 @@ static int emcTaskIssueCommand(emc_command_msg_t * cmd)
       return 0;
    }
 
-   DBG("emcTaskIssueCommand() type=%d cmd=%s execState=%d interpState=%d\n", cmd->msg.type, lookup_message(cmd->msg.type),
-         emcStatus->task.execState, emcStatus->task.interpState);
+   DBG("emcTaskIssueCommand() type=%d cmd=%s execState=%s interp.len=%d  interpState=%s\n", cmd->msg.type, lookup_message(cmd->msg.type),
+         lookup_task_exec_state(emcStatus->task.execState), interp_list.len(), lookup_task_interp_state(emcStatus->task.interpState));
 
    switch (cmd->msg.type)
    {
@@ -1960,18 +2082,18 @@ static int emcTaskIssueCommand(emc_command_msg_t * cmd)
       emcmotCommand.command = EMCMOT_SET_TERM_COND;
       emcmotCommand.termCond = ((emc_traj_set_term_cond_msg_t *)cmd)->cond == EMC_TRAJ_TERM_COND_STOP ? EMCMOT_TERM_COND_STOP : EMCMOT_TERM_COND_BLEND;
       emcmotCommand.tolerance = ((emc_traj_set_term_cond_msg_t *)cmd)->tolerance;
-      retval = emcmotWriteCommand(&emcmotCommand);
+      retval = _emc_sio_write_command(&emcmotCommand);
       break;
    case EMC_TRAJ_SET_SPINDLESYNC_TYPE:
       emcmotCommand.command = EMCMOT_SET_SPINDLESYNC;
       emcmotCommand.spindlesync = ((emc_traj_set_spindlesync_msg_t *)cmd)->feed_per_revolution;
       emcmotCommand.flags = ((emc_traj_set_spindlesync_msg_t *)cmd)->velocity_mode;
-      return emcmotWriteCommand(&emcmotCommand);
+      return _emc_sio_write_command(&emcmotCommand);
       break;
    case EMC_TRAJ_SET_OFFSET_TYPE:
       emcmotCommand.command = EMCMOT_SET_OFFSET;
       emcmotCommand.tool_offset = ((emc_traj_set_offset_msg_t *)cmd)->offset;
-      return emcmotWriteCommand(&emcmotCommand);
+      return _emc_sio_write_command(&emcmotCommand);
    case EMC_TRAJ_SET_ROTATION_TYPE:
       emcStatus->task.rotation_xy = ((emc_traj_set_rotation_msg_t *) cmd)->rotation;
       retval = EMC_R_OK;
@@ -1983,19 +2105,19 @@ static int emcTaskIssueCommand(emc_command_msg_t * cmd)
    case EMC_TRAJ_SET_SCALE_TYPE:
       emcmotCommand.command = EMCMOT_FEED_SCALE;
       emcmotCommand.scale = ((emc_traj_set_scale_msg_t *) cmd)->scale;
-      retval = emcmotWriteCommand(&emcmotCommand);
+      retval = _emc_sio_write_command(&emcmotCommand);
       break;
    case EMC_TRAJ_SET_TELEOP_ENABLE_TYPE:
       if (((emc_traj_set_teleop_enable_msg_t *) cmd)->enable)
          emcmotCommand.command = EMCMOT_TELEOP;
       else
          emcmotCommand.command = EMCMOT_FREE;
-      retval = emcmotWriteCommand(&emcmotCommand);
+      retval = _emc_sio_write_command(&emcmotCommand);
       break;
    case EMC_TRAJ_SET_TELEOP_VECTOR_TYPE:
       emcmotCommand.command = EMCMOT_SET_TELEOP_VECTOR;
       emcmotCommand.pos = ((emc_traj_set_teleop_vector_msg_t *) cmd)->vector;
-      retval = emcmotWriteCommand(&emcmotCommand);
+      retval = _emc_sio_write_command(&emcmotCommand);
       break;
 
       // IO commands
@@ -2004,50 +2126,85 @@ static int emcTaskIssueCommand(emc_command_msg_t * cmd)
       return EMC_R_OK;
       break;
    case EMC_SPINDLE_ON_TYPE:
-      emcmotCommand.command = EMCMOT_SPINDLE_ON;
-      emcmotCommand.vel = ((emc_spindle_on_msg_t *) cmd)->speed;
-      emcmotCommand.ini_maxvel = ((emc_spindle_on_msg_t *) cmd)->factor;
-      emcmotCommand.acc = ((emc_spindle_on_msg_t *) cmd)->xoffset;
-      retval = emcmotWriteCommand(&emcmotCommand);
+//      emcmotCommand.command = EMCMOT_SPINDLE_ON;
+//      emcmotCommand.vel = ((emc_spindle_on_msg_t *) cmd)->speed;
+//      emcmotCommand.ini_maxvel = ((emc_spindle_on_msg_t *) cmd)->factor;
+//      emcmotCommand.acc = ((emc_spindle_on_msg_t *) cmd)->xoffset;
+//      retval = _emc_sio_write_command(&emcmotCommand);
+      speed = ((emc_spindle_on_msg_t *)cmd)->speed;
+      if (speed >= 0)
+         return emcTaskExecScript(3, speed, 0.0, 0);         /* execute m3.py script */
+      else
+         return emcTaskExecScript(4, speed, 0.0, 0);         /* execute m4.py script */
       break;
    case EMC_SPINDLE_OFF_TYPE:
-      emcmotCommand.command = EMCMOT_SPINDLE_OFF;
-      retval = emcmotWriteCommand(&emcmotCommand);
+//      emcmotCommand.command = EMCMOT_SPINDLE_OFF;
+//      retval = _emc_sio_write_command(&emcmotCommand);
+      return emcTaskExecScript(5, 0.0, 0.0, 0);         /* execute m5.py script */
+      break;
+   case EMC_SYSTEM_CMD_TYPE:
+//      emcmotCommand.command = EMCMOT_SYSTEM_CMD;
+//      emcmotCommand.index = ((emc_system_cmd_msg_t *)cmd)->index;
+//      emcmotCommand.p_number = ((emc_system_cmd_msg_t *)cmd)->p_number;
+//      emcmotCommand.q_number = ((emc_system_cmd_msg_t *)cmd)->q_number;
+//      retval = _emc_sio_write_command(&emcmotCommand);
+      return emcTaskExecScript(((emc_system_cmd_msg_t *)cmd)->index, ((emc_system_cmd_msg_t *)cmd)->p_number, ((emc_system_cmd_msg_t *)cmd)->q_number, 0);
+      break;
+   case EMC_MOTION_SET_DOUT_TYPE:
+      emcmotCommand.command = EMCMOT_SET_DOUT;
+      emcmotCommand.output_num = ((emc_motion_set_dout_msg_t *)cmd)->output_num;
+      emcmotCommand.value = ((emc_motion_set_dout_msg_t *) cmd)->value;
+      emcmotCommand.sync = ((emc_motion_set_dout_msg_t *) cmd)->sync;
+      retval = _emc_sio_write_command(&emcmotCommand);
+      break;
+   case EMC_MOTION_ENABLE_DIN_ABORT_TYPE:
+      emcmotCommand.command = EMCMOT_ENABLE_DIN_ABORT;
+      emcmotCommand.input_num = ((emc_motion_din_msg_t *)cmd)->input_num;
+      retval = _emc_sio_write_command(&emcmotCommand);
+      break;
+   case EMC_MOTION_DISABLE_DIN_ABORT_TYPE:
+      emcmotCommand.command = EMCMOT_DISABLE_DIN_ABORT;
+      emcmotCommand.input_num = ((emc_motion_din_msg_t *)cmd)->input_num;
+      retval = _emc_sio_write_command(&emcmotCommand);
       break;
    case EMC_SPINDLE_BRAKE_RELEASE_TYPE:
       emcmotCommand.command = EMCMOT_SPINDLE_BRAKE_RELEASE;
-      retval = emcmotWriteCommand(&emcmotCommand);
+      retval = _emc_sio_write_command(&emcmotCommand);
       break;
    case EMC_SPINDLE_INCREASE_TYPE:
       emcmotCommand.command = EMCMOT_SPINDLE_INCREASE;
-      retval = emcmotWriteCommand(&emcmotCommand);
+      retval = _emc_sio_write_command(&emcmotCommand);
       break;
    case EMC_SPINDLE_DECREASE_TYPE:
       emcmotCommand.command = EMCMOT_SPINDLE_DECREASE;
-      retval = emcmotWriteCommand(&emcmotCommand);
+      retval = _emc_sio_write_command(&emcmotCommand);
       break;
    case EMC_SPINDLE_CONSTANT_TYPE:
       retval = EMC_R_OK;
       break;
    case EMC_SPINDLE_BRAKE_ENGAGE_TYPE:
       emcmotCommand.command = EMCMOT_SPINDLE_BRAKE_ENGAGE;
-      retval = emcmotWriteCommand(&emcmotCommand);
+      retval = _emc_sio_write_command(&emcmotCommand);
       break;
    case EMC_COOLANT_MIST_ON_TYPE:
-      emcioCommand.type = EMCIO_COOLANT_MIST_ON_COMMAND;
-      retval = sendCommand(&emcioCommand);
+//      emcioCommand.type = EMCIO_COOLANT_MIST_ON_COMMAND;
+//      retval = sendCommand(&emcioCommand);
+      retval = emcTaskExecScript(7, 0.0, 0.0, 0);   /* execute m7.py script */
       break;
    case EMC_COOLANT_MIST_OFF_TYPE:
-      emcioCommand.type = EMCIO_COOLANT_MIST_OFF_COMMAND;
-      retval = sendCommand(&emcioCommand);
+//      emcioCommand.type = EMCIO_COOLANT_MIST_OFF_COMMAND;
+//      retval = sendCommand(&emcioCommand);
+      retval = emcTaskExecScript(9, 1.0, 0.0, 0);   /* execute m9.py script */
       break;
    case EMC_COOLANT_FLOOD_ON_TYPE:
-      emcioCommand.type = EMCIO_COOLANT_FLOOD_ON_COMMAND;
-      retval = sendCommand(&emcioCommand);
+//      emcioCommand.type = EMCIO_COOLANT_FLOOD_ON_COMMAND;
+//      retval = sendCommand(&emcioCommand);
+      retval = emcTaskExecScript(8, 0.0, 0.0, 0);   /* execute m8.py script */
       break;
    case EMC_COOLANT_FLOOD_OFF_TYPE:
-      emcioCommand.type = EMCIO_COOLANT_FLOOD_OFF_COMMAND;
-      retval = sendCommand(&emcioCommand);
+//      emcioCommand.type = EMCIO_COOLANT_FLOOD_OFF_COMMAND;
+//      retval = sendCommand(&emcioCommand);
+      retval = emcTaskExecScript(9, 2.0, 0.0, 0);   /* execute m9.py script */
       break;
    case EMC_LUBE_ON_TYPE:
       emcioCommand.type = EMCIO_LUBE_ON_COMMAND;
@@ -2092,37 +2249,19 @@ static int emcTaskIssueCommand(emc_command_msg_t * cmd)
       break;
    case EMC_TASK_SET_MODE_TYPE:
       mode = ((emc_task_set_mode_msg_t *) cmd)->mode;
-      if (emcStatus->task.mode == EMC_TASK_MODE_AUTO && emcStatus->task.interpState != EMC_TASK_INTERP_IDLE && mode != EMC_TASK_MODE_AUTO)
+
+      if (emcStatus->task.mode == EMC_TASK_MODE_AUTO && emcStatus->task.interpState != EMC_TASK_INTERP_IDLE && 
+            mode != EMC_TASK_MODE_AUTO && emcStatus->task.execState != EMC_TASK_EXEC_WAITING_FOR_SYSTEM_CMD)
       {
          BUG("Can't switch mode while mode is AUTO and interpreter is not IDLE\n");
-         emcOperatorError(0, EMC_I18N("Can't switch mode while mode is AUTO and interpreter is not IDLE"));
+         emcOperatorMessage(0, EMC_I18N("Can't switch mode while mode is AUTO and interpreter is not IDLE"));
       }
       else
-      { // we can honour the modeswitch
+      { // we can honor the modeswitch
          if (mode == EMC_TASK_MODE_MANUAL && emcStatus->task.mode != EMC_TASK_MODE_MANUAL)
          {
-            // leaving auto or mdi mode for manual
-
-            // abort motion
-            emcTaskAbort();
-#if 0   // Following is redendent, done in emcTaskAbort(). DES
-            emcTaskPlanClose();
-
-            // clear out the pending command
-            emcTaskCommand = NULL;
-            interp_list.clear();
-            emcStatus->task.currentLine = 0;
-
-            // clear out the interpreter state
-            emcStatus->task.interpState = EMC_TASK_INTERP_IDLE;
-            emcStatus->task.execState = EMC_TASK_EXEC_DONE;
-            stepping = 0;
-            steppingWait = 0;
-
-            // now queue up command to resynch interpreter
-            interp_list.append((emc_command_msg_t *) & taskPlanSynchCmd);
-#endif
-            retval = EMC_R_OK;
+            // leaving auto or mdi mode for manual, abort motion
+//            emcTaskAbort();
          }
          retval = emcTaskSetMode(mode);
       }
@@ -2140,7 +2279,7 @@ static int emcTaskIssueCommand(emc_command_msg_t * cmd)
       {
          retval = EMC_R_ERROR;
          BUG("can't open %s\n", file);
-         emcOperatorError(0, EMC_I18N("can't open %s"), file);
+         emcOperatorMessage(0, EMC_I18N("can't open %s"), file);
       }
       else
       {
@@ -2151,17 +2290,17 @@ static int emcTaskIssueCommand(emc_command_msg_t * cmd)
    case EMC_TASK_PLAN_EXECUTE_TYPE:
       stepping = 0;
       steppingWait = 0;
-      command = ((emc_task_plan_execute_msg_t *) cmd)->command;
+      command = ((emc_task_plan_execute_msg_t *) cmd)->command;  /* mdi command string */
       if (!all_homed() && !no_force_homing)
       {
          BUG("Can't issue MDI command when not homed\n");
-         emcOperatorError(0, EMC_I18N("Can't issue MDI command when not homed"));
+         emcOperatorMessage(0, EMC_I18N("Can't issue MDI command when not homed"));
          break;
       }
       if (emcStatus->task.mode != EMC_TASK_MODE_MDI)
       {
          BUG("Must be in MDI mode to issue MDI command\n");
-         emcOperatorError(0, EMC_I18N("Must be in MDI mode to issue MDI command"));
+         emcOperatorMessage(0, EMC_I18N("Must be in MDI mode to issue MDI command"));
          break;
       }
       if (command[0] != 0)
@@ -2188,13 +2327,13 @@ static int emcTaskIssueCommand(emc_command_msg_t * cmd)
       if (!all_homed() && !no_force_homing)
       {
          BUG("Can't run a program when not homed\n");
-         emcOperatorError(0, EMC_I18N("Can't run a program when not homed"));
+         emcOperatorMessage(0, EMC_I18N("Can't run a program when not homed"));
          break;
       }
       if (emcStatus->task.file[0] == 0)
       {
          BUG("Can't run, must open program first\n");
-         emcOperatorError(0, EMC_I18N("Can't run, must open program first"));
+         emcOperatorMessage(0, EMC_I18N("Can't run, must open program first"));
          break;
       }
       stepping = 0;
@@ -2212,11 +2351,11 @@ static int emcTaskIssueCommand(emc_command_msg_t * cmd)
       if (emcStatus->task.file[0] == 0)
       {
          BUG("Can't pause, must open program first\n");
-         emcOperatorError(0, EMC_I18N("Can't pause, must open program first"));
+         emcOperatorMessage(0, EMC_I18N("Can't pause, must open program first"));
          break;
       }
       emcmotCommand.command = EMCMOT_PAUSE;
-      retval = emcmotWriteCommand(&emcmotCommand);
+      retval = _emc_sio_write_command(&emcmotCommand);
       if (emcStatus->task.interpState != EMC_TASK_INTERP_PAUSED)
       {
          interpResumeState = emcStatus->task.interpState;
@@ -2228,12 +2367,12 @@ static int emcTaskIssueCommand(emc_command_msg_t * cmd)
       if (emcStatus->task.file[0] == 0)
       {
          BUG("Can't resume , must open program first\n");
-         emcOperatorError(0, EMC_I18N("Can't resume, must open program first"));
+         emcOperatorMessage(0, EMC_I18N("Can't resume, must open program first"));
          break;
       }
       emcmotCommand.command = EMCMOT_RESUME;
-      retval = emcmotWriteCommand(&emcmotCommand);
-      emcStatus->task.interpState = (enum EMC_TASK_INTERP_ENUM) interpResumeState;
+      retval = _emc_sio_write_command(&emcmotCommand);
+      emcStatus->task.interpState = (enum EMC_TASK_INTERP) interpResumeState;
       emcStatus->task.task_paused = 0;
       stepping = 0;
       steppingWait = 0;
@@ -2269,7 +2408,7 @@ static int emcTaskIssueCommand(emc_command_msg_t * cmd)
    return retval;
 }       /* emcTaskIssueCommand() */
 
-/* Check preconditions for non-immediate commands. */
+/* Used by emcTaskExecute(). Check preconditions for commands on the interp_list (non-immediate commands). */
 static int emcTaskCheckPreconditions(emc_command_msg_t * cmd)
 {
    if (cmd == NULL)
@@ -2280,9 +2419,7 @@ static int emcTaskCheckPreconditions(emc_command_msg_t * cmd)
    switch (cmd->msg.type)
    {
       // operator messages, if queued, will go out when everything before them is done
-   case EMC_OPERATOR_ERROR_TYPE:
-   case EMC_OPERATOR_TEXT_TYPE:
-   case EMC_OPERATOR_DISPLAY_TYPE:
+   case EMC_OPERATOR_MESSAGE_TYPE:
    case EMC_SYSTEM_CMD_TYPE:
    case EMC_TRAJ_PROBE_TYPE:   // prevent blending of this
    case EMC_TRAJ_RIGID_TAP_TYPE:       //and this
@@ -2372,7 +2509,7 @@ static int emcTaskCheckPreconditions(emc_command_msg_t * cmd)
    return EMC_TASK_EXEC_DONE;
 }       /* emcTaskCheckPreconditions() */
 
-/* Check postconditions for non-immediate commands. */
+/* Used by emcTaskExecute(). Check postconditions for commands on the interp_list (non-immediate commands). */
 static int emcTaskCheckPostconditions(emc_command_msg_t * cmd)
 {
    if (cmd == NULL)
@@ -2382,14 +2519,18 @@ static int emcTaskCheckPostconditions(emc_command_msg_t * cmd)
 
    switch (cmd->msg.type)
    {
-   case EMC_OPERATOR_ERROR_TYPE:
-   case EMC_OPERATOR_TEXT_TYPE:
-   case EMC_OPERATOR_DISPLAY_TYPE:
+   case EMC_OPERATOR_MESSAGE_TYPE:
       return EMC_TASK_EXEC_DONE;
       break;
 
    case EMC_SYSTEM_CMD_TYPE:
-      return EMC_TASK_EXEC_WAITING_FOR_SYSTEM_CMD;
+   case EMC_SPINDLE_ON_TYPE:
+   case EMC_SPINDLE_OFF_TYPE:
+   case EMC_COOLANT_MIST_ON_TYPE:
+   case EMC_COOLANT_MIST_OFF_TYPE:
+   case EMC_COOLANT_FLOOD_ON_TYPE:
+   case EMC_COOLANT_FLOOD_OFF_TYPE:
+      return EMC_TASK_EXEC_WAITING_FOR_SYSTEM_CMD; /* tinypy mcode script */
       break;
 
    case EMC_TRAJ_LINEAR_MOVE_TYPE:
@@ -2422,12 +2563,6 @@ static int emcTaskCheckPostconditions(emc_command_msg_t * cmd)
    case EMC_TOOL_SET_OFFSET_TYPE:
    case EMC_TOOL_SET_NUMBER_TYPE:
    case EMC_SPINDLE_SPEED_TYPE:
-   case EMC_SPINDLE_ON_TYPE:
-   case EMC_SPINDLE_OFF_TYPE:
-   case EMC_COOLANT_MIST_ON_TYPE:
-   case EMC_COOLANT_MIST_OFF_TYPE:
-   case EMC_COOLANT_FLOOD_ON_TYPE:
-   case EMC_COOLANT_FLOOD_OFF_TYPE:
    case EMC_LUBE_ON_TYPE:
    case EMC_LUBE_OFF_TYPE:
       return EMC_TASK_EXEC_DONE;
@@ -2463,41 +2598,24 @@ static int emcTaskCheckPostconditions(emc_command_msg_t * cmd)
    return EMC_TASK_EXEC_DONE;   // unreached
 }       /* emcTaskCheckPostconditions() */
 
-int emcTaskExecute(void)
+/*********************************************************************************
+ * emcTaskExecute() - executes commands from interp_list.
+ */
+void emcTaskExecute(void)
 {
-   int retval = EMC_R_OK;
+   struct emc_session *ps = &session;
 
    switch (emcStatus->task.execState)
    {
+#if 0
    case EMC_TASK_EXEC_ERROR:
       // abort everything
       emcTaskAbort();
       emcIoAbort();
       emcSpindleOff();
-
-#if 0 // Redundent code, done in emcTaskAbort(). DES 
-      if (taskplanopen)
-      {
-         emcTaskPlanClose();
-         BUG("emcTaskPlanClose() called\n");
-      }
-
-      // clear out pending command
-      emcTaskCommand = NULL;
-      interp_list.clear();
-      emcStatus->task.currentLine = 0;
-
-      // clear out the interpreter state
-      emcStatus->task.interpState = EMC_TASK_INTERP_IDLE;
-      emcStatus->task.execState = EMC_TASK_EXEC_DONE;
-      stepping = 0;
-      steppingWait = 0;
-
-      // now queue up command to resynch interpreter
-      interp_list.append((emc_command_msg_t *) & taskPlanSynchCmd);
-#endif
       retval = EMC_R_ERROR;
       break;
+#endif
    case EMC_TASK_EXEC_DONE:
       if (is_stepping_ok())
       {
@@ -2507,9 +2625,9 @@ int emcTaskExecute(void)
             {
                // need a new command
                emcTaskCommand = interp_list.get();
-               // interp_list now has line number associated with this-- get it 
                if (emcTaskCommand != NULL)
                {
+                  // interp_list now has line number associated with this-- get it 
                   emcStatus->task.currentLine = interp_list.get_line_number();
                   if (emcStatus->motion.traj.queueFull)
                   {
@@ -2517,7 +2635,7 @@ int emcTaskExecute(void)
                   }
                   else
                   {
-                     emcStatus->task.execState = (enum EMC_TASK_EXEC_ENUM) emcTaskCheckPreconditions(emcTaskCommand);
+                     emcStatus->task.execState = (enum EMC_TASK_EXEC) emcTaskCheckPreconditions(emcTaskCommand);
                   }
                }
             }
@@ -2527,11 +2645,10 @@ int emcTaskExecute(void)
                if (emcTaskIssueCommand(emcTaskCommand) != EMC_R_OK)
                {
                   emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
-                  retval = EMC_R_ERROR;
                }
                else
                {
-                  emcStatus->task.execState = (enum EMC_TASK_EXEC_ENUM) emcTaskCheckPostconditions(emcTaskCommand);
+                  emcStatus->task.execState = (enum EMC_TASK_EXEC) emcTaskCheckPostconditions(emcTaskCommand);
                }
                emcTaskCommand = NULL;   // reset it
             }
@@ -2545,7 +2662,7 @@ int emcTaskExecute(void)
          {
             if (emcTaskCommand != NULL)
             {
-               emcStatus->task.execState = (enum EMC_TASK_EXEC_ENUM) emcTaskCheckPreconditions(emcTaskCommand);
+               emcStatus->task.execState = (enum EMC_TASK_EXEC) emcTaskCheckPreconditions(emcTaskCommand);
             }
             else
             {
@@ -2567,7 +2684,7 @@ int emcTaskExecute(void)
                }
                else
                {
-                  emcStatus->task.execState = (enum EMC_TASK_EXEC_ENUM) emcTaskCheckPreconditions(emcTaskCommand);
+                  emcStatus->task.execState = (enum EMC_TASK_EXEC) emcTaskCheckPreconditions(emcTaskCommand);
                }
             }
             else
@@ -2582,7 +2699,7 @@ int emcTaskExecute(void)
       {
          if (emcStatus->motion.status == RCS_ERROR)
          {
-            // emcOperatorError(0, "error in motion controller");
+            // emcOperatorMessage(0, "error in motion controller");
             emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
          }
          else if (emcStatus->motion.status == RCS_DONE)
@@ -2596,7 +2713,7 @@ int emcTaskExecute(void)
       {
          if (emcStatus->io.status == RCS_ERROR)
          {
-            // emcOperatorError(0, "error in IO controller");
+            // emcOperatorMessage(0, "error in IO controller");
             emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
          }
          else if (emcStatus->io.status == RCS_DONE)
@@ -2610,12 +2727,12 @@ int emcTaskExecute(void)
       {
          if (emcStatus->motion.status == RCS_ERROR)
          {
-            // emcOperatorError(0, "error in motion controller");
+            // emcOperatorMessage(0, "error in motion controller");
             emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
          }
          else if (emcStatus->io.status == RCS_ERROR)
          {
-            // emcOperatorError(0, "error in IO controller");
+            // emcOperatorMessage(0, "error in IO controller");
             emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
          }
          else if (emcStatus->motion.status == RCS_DONE && emcStatus->io.status == RCS_DONE)
@@ -2638,13 +2755,21 @@ int emcTaskExecute(void)
       }
       }
       break;
+    case EMC_TASK_EXEC_WAITING_FOR_SYSTEM_CMD:
+      if (is_stepping_ok())
+      {
+         if (ps->mcode_thread_active == 0)
+         {
+            emcStatus->task.execState = EMC_TASK_EXEC_DONE;
+         }
+      }
+      break;
    default:
       // coding error
       BUG("invalid emcTaskExecute() state=%d\n", emcStatus->task.execState);
-      retval = EMC_R_ERROR;
+      emcStatus->task.execState = EMC_TASK_EXEC_ERROR;
       break;
    }
-   return retval;
 }       /* emcTaskExecute() */
 
 int emcTaskPlanOpen(const char *file)
@@ -2747,7 +2872,7 @@ int emcTaskPlanRead()
    return retval;
 }       /* emcTaskPlanRead() */
 
-int emcTaskPlanExecute(const char *command)
+static int emcTaskPlanExecute(const char *command)
 {
    int inpos = emcStatus->motion.traj.inpos;    // 1 if in position, 0 if not.
 
@@ -2765,11 +2890,12 @@ int emcTaskPlanExecute(const char *command)
    if (command != NULL)
       FINISH();
 
-   DBG("emcTaskPlanExecute() execState=%d interpState=%d ret=%d\n", emcStatus->task.execState, emcStatus->task.interpState, retval);
+   DBG("emcTaskPlanExecute() execState=%s interp.len=%d interpState=%s ret=%d\n", lookup_task_exec_state(emcStatus->task.execState), 
+        interp_list.len(), lookup_task_interp_state(emcStatus->task.interpState), retval);
    return retval;
 }       /* emcTaskPlanExecute() */
 
-int emcTaskPlanExecuteEx(const char *command, int line_number)
+static int emcTaskPlanExecuteEx(const char *command, int line_number)
 {
    int retval = interp.execute(command, line_number);
    if (retval > INTERP_MIN_ERROR)
@@ -2777,22 +2903,26 @@ int emcTaskPlanExecuteEx(const char *command, int line_number)
    if (command != NULL) // this means MDI
       FINISH();
 
-   DBG("emcTaskPlanExecuteEx() execState=%d interpState=%d ret=%d\n", emcStatus->task.execState, emcStatus->task.interpState, retval);
+   DBG("emcTaskPlanExecuteEx() execState=%s interp.len=%d interpState=%s ret=%d\n", lookup_task_exec_state(emcStatus->task.execState), 
+        interp_list.len(), lookup_task_interp_state(emcStatus->task.interpState), retval);
    return retval;
 }       /* emcTaskPlanExecute() */
 
-int emcTaskPlan(void)
+/**********************************************************************************
+ * emcTaskPlan() - process commands from gui and gcode file.
+ */
+void emcTaskPlan(emc_command_msg_t *emcCommand)
 {
-   int type;
+   struct emc_session *ps = &session;
+   enum EMC_COMMAND_MSG_TYPE type = EMC_COMMAND_UNUSED;
    int retval = EMC_R_OK;
 
-   // check for new command
-   if (emcCommand->msg.serial_number != emcStatus->echo_serial_number)
-      type = emcCommand->msg.type;  /* new command */
-   else
-      type = 0;
+   if (emcCommand)
+   {
+       type = emcCommand->msg.type;  /* new command */
+       emcStatus->task.planState = EMC_TASK_PLAN_DONE; /* reset state */
+   }
 
-   // handle any new command
    switch (emcStatus->task.state)
    {
    case EMC_TASK_STATE_OFF:
@@ -2809,11 +2939,11 @@ int emcTaskPlan(void)
          // now switch on the command
          switch (type)
          {
-         case 0:
+         case EMC_COMMAND_UNUSED:
             // no command
             break;
          case EMC_QUIT_TYPE:
-            emc_ui_exit();
+            ps->command_thread_abort = 1;
             break;
 
             // immediate commands
@@ -2846,6 +2976,8 @@ int emcTaskPlan(void)
          case EMC_TRAJ_PROBE_TYPE:
          case EMC_AUX_INPUT_WAIT_TYPE:
          case EMC_MOTION_SET_DOUT_TYPE:
+         case EMC_MOTION_ENABLE_DIN_ABORT_TYPE:
+         case EMC_MOTION_DISABLE_DIN_ABORT_TYPE:
          case EMC_MOTION_ADAPTIVE_TYPE:
          case EMC_MOTION_SET_AOUT_TYPE:
          case EMC_TRAJ_RIGID_TAP_TYPE:
@@ -2875,7 +3007,8 @@ int emcTaskPlan(void)
             interp_list.append((emc_command_msg_t *) & taskPlanSynchCmd);
             break;
          default:
-            emcOperatorError(0, EMC_I18N("command (%s) cannot be executed until the machine is out of E-stop and turned on"), lookup_message(type));
+            BUG("command (%s) cannot be executed until the machine is out of E-stop and turned on\n", lookup_message(type));
+            emcOperatorMessage(0, EMC_I18N("command (%s) cannot be executed until the machine is out of E-stop and turned on"), lookup_message(type));
             retval = EMC_R_ERROR;
             break;
          }      // switch (type)
@@ -2896,11 +3029,11 @@ int emcTaskPlan(void)
       case EMC_TASK_MODE_MANUAL:       // ON, MANUAL
          switch (type)
          {
-         case 0:
+         case EMC_COMMAND_UNUSED:
             // no command
             break;
          case EMC_QUIT_TYPE:
-            emc_ui_exit();
+            ps->command_thread_abort = 1;
             break;
 
             // immediate commands
@@ -2958,6 +3091,8 @@ int emcTaskPlan(void)
          case EMC_TRAJ_PROBE_TYPE:
          case EMC_AUX_INPUT_WAIT_TYPE:
          case EMC_MOTION_SET_DOUT_TYPE:
+         case EMC_MOTION_ENABLE_DIN_ABORT_TYPE:
+         case EMC_MOTION_DISABLE_DIN_ABORT_TYPE:
          case EMC_MOTION_SET_AOUT_TYPE:
          case EMC_MOTION_ADAPTIVE_TYPE:
          case EMC_TRAJ_RIGID_TAP_TYPE:
@@ -2993,7 +3128,8 @@ int emcTaskPlan(void)
             // otherwise we can't handle it
 
          default:
-            emcOperatorError(0, EMC_I18N("can't do that (%s) in manual mode"), lookup_message(type));
+            BUG("can't do that (%s) in manual mode\n", lookup_message(type));
+            emcOperatorMessage(0, EMC_I18N("can't do that (%s) in manual mode"), lookup_message(type));
             retval = EMC_R_ERROR;
             break;
          }      // switch (type) in ON, MANUAL
@@ -3005,11 +3141,11 @@ int emcTaskPlan(void)
          case EMC_TASK_INTERP_IDLE:    // ON, AUTO, IDLE
             switch (type)
             {
-            case 0:
+            case EMC_COMMAND_UNUSED:
                // no command
                break;
             case EMC_QUIT_TYPE:
-               emc_ui_exit();
+               ps->command_thread_abort = 1;
                break;
 
                // immediate commands
@@ -3036,6 +3172,7 @@ int emcTaskPlan(void)
             case EMC_SPINDLE_INCREASE_TYPE:
             case EMC_SPINDLE_DECREASE_TYPE:
             case EMC_SPINDLE_CONSTANT_TYPE:
+            case EMC_MOTION_SET_DOUT_TYPE:
             case EMC_COOLANT_MIST_ON_TYPE:
             case EMC_COOLANT_MIST_OFF_TYPE:
             case EMC_COOLANT_FLOOD_ON_TYPE:
@@ -3091,7 +3228,8 @@ int emcTaskPlan(void)
 
                // otherwise we can't handle it
             default:
-               emcOperatorError(0, EMC_I18N("can't do that (%s) in auto mode with the interpreter idle"), lookup_message(type));
+               BUG("can't do that (%s) in auto mode with the interpreter idle\n", lookup_message(type));
+               emcOperatorMessage(0, EMC_I18N("can't do that (%s) in auto mode with the interpreter idle"), lookup_message(type));
                retval = EMC_R_ERROR;
                break;
 
@@ -3102,11 +3240,11 @@ int emcTaskPlan(void)
          case EMC_TASK_INTERP_READING: // ON, AUTO, READING
             switch (type)
             {
-            case 0:
+            case EMC_COMMAND_UNUSED:
                // no command
                break;
             case EMC_QUIT_TYPE:
-               emc_ui_exit();
+               ps->command_thread_abort = 1;
                break;
 
                // immediate commands
@@ -3141,7 +3279,7 @@ int emcTaskPlan(void)
             case EMC_AUX_INPUT_WAIT_TYPE:
             case EMC_TRAJ_RIGID_TAP_TYPE:
                retval = emcTaskIssueCommand(emcCommand);
-               return retval;
+               return;
                break;
 
             case EMC_TASK_PLAN_STEP_TYPE:
@@ -3151,7 +3289,8 @@ int emcTaskPlan(void)
 
                // otherwise we can't handle it
             default:
-               emcOperatorError(0, EMC_I18N("can't do that (%s) in auto mode with the interpreter reading"), lookup_message(type));
+               BUG("can't do that (%s) in auto mode with the interpreter reading\n", lookup_message(type));
+               emcOperatorMessage(0, EMC_I18N("can't do that (%s) in auto mode with the interpreter reading"), lookup_message(type));
                retval = EMC_R_ERROR;
                break;
 
@@ -3164,11 +3303,11 @@ int emcTaskPlan(void)
          case EMC_TASK_INTERP_PAUSED:  // ON, AUTO, PAUSED
             switch (type)
             {
-            case 0:
+            case EMC_COMMAND_UNUSED:
                // no command
                break;
             case EMC_QUIT_TYPE:
-               emc_ui_exit();
+               ps->command_thread_abort = 1;
                break;
 
                // immediate commands
@@ -3195,6 +3334,7 @@ int emcTaskPlan(void)
             case EMC_SPINDLE_INCREASE_TYPE:
             case EMC_SPINDLE_DECREASE_TYPE:
             case EMC_SPINDLE_CONSTANT_TYPE:
+            case EMC_MOTION_SET_DOUT_TYPE:
             case EMC_COOLANT_MIST_ON_TYPE:
             case EMC_COOLANT_MIST_OFF_TYPE:
             case EMC_COOLANT_FLOOD_ON_TYPE:
@@ -3227,14 +3367,15 @@ int emcTaskPlan(void)
                }
                else
                {
-                  emcStatus->task.interpState = (enum EMC_TASK_INTERP_ENUM) interpResumeState;
+                  emcStatus->task.interpState = (enum EMC_TASK_INTERP) interpResumeState;
                }
                emcStatus->task.task_paused = 1;
                break;
 
                // otherwise we can't handle it
             default:
-               emcOperatorError(0, EMC_I18N("can't do that (%s) in auto mode with the interpreter paused"), lookup_message(type));
+               BUG("can't do that (%s) in auto mode with the interpreter paused\n", lookup_message(type));
+               emcOperatorMessage(0, EMC_I18N("can't do that (%s) in auto mode with the interpreter paused"), lookup_message(type));
                retval = EMC_R_ERROR;
                break;
             }   // switch (type) in ON, AUTO, PAUSED
@@ -3246,11 +3387,11 @@ int emcTaskPlan(void)
             // handle input commands
             switch (type)
             {
-            case 0:
+            case EMC_COMMAND_UNUSED:
                // no command
                break;
             case EMC_QUIT_TYPE:
-               emc_ui_exit();
+               ps->command_thread_abort = 1;
                break;
 
                // immediate commands
@@ -3272,6 +3413,9 @@ int emcTaskPlan(void)
             case EMC_SPINDLE_INCREASE_TYPE:
             case EMC_SPINDLE_DECREASE_TYPE:
             case EMC_SPINDLE_CONSTANT_TYPE:
+            case EMC_MOTION_SET_DOUT_TYPE:
+            case EMC_MOTION_ENABLE_DIN_ABORT_TYPE:
+            case EMC_MOTION_DISABLE_DIN_ABORT_TYPE:
             case EMC_TASK_PLAN_EXECUTE_TYPE:
             case EMC_TASK_PLAN_PAUSE_TYPE:
             case EMC_TASK_PLAN_RESUME_TYPE:
@@ -3295,7 +3439,8 @@ int emcTaskPlan(void)
 
                // otherwise we can't handle it
             default:
-               emcOperatorError(0, EMC_I18N("can't do that (%s) in auto mode with the interpreter waiting"), lookup_message(type));
+               BUG("can't do that (%s) in auto mode with the interpreter waiting\n", lookup_message(type));
+               emcOperatorMessage(0, EMC_I18N("can't do that (%s) in auto mode with the interpreter waiting"), lookup_message(type));
                retval = EMC_R_ERROR;
                break;
             }   // switch (type) in ON, AUTO, WAITING
@@ -3315,11 +3460,11 @@ int emcTaskPlan(void)
       case EMC_TASK_MODE_MDI:  // ON, MDI
          switch (type)
          {
-         case 0:
+         case EMC_COMMAND_UNUSED:
             // no command
             break;
          case EMC_QUIT_TYPE:
-            emc_ui_exit();
+            ps->command_thread_abort = 1;
             break;
 
             // immediate commands
@@ -3364,6 +3509,8 @@ int emcTaskPlan(void)
          case EMC_TRAJ_PROBE_TYPE:
          case EMC_AUX_INPUT_WAIT_TYPE:
          case EMC_MOTION_SET_DOUT_TYPE:
+         case EMC_MOTION_ENABLE_DIN_ABORT_TYPE:
+         case EMC_MOTION_DISABLE_DIN_ABORT_TYPE:
          case EMC_MOTION_SET_AOUT_TYPE:
          case EMC_MOTION_ADAPTIVE_TYPE:
          case EMC_TRAJ_RIGID_TAP_TYPE:
@@ -3380,7 +3527,8 @@ int emcTaskPlan(void)
             break;
             // otherwise we can't handle it
          default:
-            emcOperatorError(0, EMC_I18N("can't do that (%s) in MDI mode"), lookup_message(type));
+            BUG("can't do that (%s) in MDI mode\n", lookup_message(type));
+            emcOperatorMessage(0, EMC_I18N("can't do that (%s) in MDI mode"), lookup_message(type));
             retval = EMC_R_ERROR;
             break;
          }      // switch (type) in ON, MDI
@@ -3393,5 +3541,7 @@ int emcTaskPlan(void)
       break;
    }    // switch (task.state)
 
-   return retval;
+   if (retval != EMC_R_OK)
+      emcStatus->task.planState = EMC_TASK_PLAN_ERROR;
+
 }       /* emcTaskPlan() */

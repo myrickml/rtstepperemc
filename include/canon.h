@@ -733,11 +733,6 @@ extern double GET_EXTERNAL_ORIGIN_Z();
 
 */
 
-// returns nothing but copies the name of the parameter file into
-// the filename array, stopping at max_size if the name is longer
-// An empty string may be placed in filename.
-extern void GET_EXTERNAL_PARAMETER_FILE_NAME(char *filename, int max_size);
-
 // returns the currently active plane
 extern CANON_PLANE GET_EXTERNAL_PLANE();
 
@@ -864,13 +859,10 @@ extern int GET_EXTERNAL_AXIS_MASK();
 extern FILE *_outfile;          /* where to print, set in main */
 extern CANON_TOOL_TABLE _tools[];       /* in canon.cc */
 extern int _pockets_max;        /* in canon.cc */
-extern char _parameter_file_name[];     /* in canon.cc */
 #define PARAMETER_FILE_NAME_LENGTH 100
 
 #define USER_DEFINED_FUNCTION_NUM 100
-typedef void (*USER_DEFINED_FUNCTION_TYPE) (int num, double arg1, double arg2);
-extern USER_DEFINED_FUNCTION_TYPE USER_DEFINED_FUNCTION[USER_DEFINED_FUNCTION_NUM];
-extern int USER_DEFINED_FUNCTION_ADD(USER_DEFINED_FUNCTION_TYPE func, int num);
+void EXEC_USER_DEFINED_FUNCTION(int index, double p_number, double q_number);
 
 /* to be called by emcTaskPlanExecute when done interpreting.  This causes the
  * last segment to be output, if it has been held to do segment merging */

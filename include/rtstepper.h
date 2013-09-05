@@ -46,9 +46,21 @@ enum RTSTEPPER_RESULT
    RTSTEPPER_R_MALLOC_ERROR = -2,
    RTSTEPPER_R_IO_ERROR = -1,
    RTSTEPPER_R_OK = 0,
-   RTSTEPPER_R_INPUT0_TRUE = 1,
-   RTSTEPPER_R_INPUT1_TRUE = 2,
-   RTSTEPPER_R_INPUT2_TRUE = 3,
+   RTSTEPPER_R_INPUT_TRUE = 1,
+   RTSTEPPER_R_INPUT_FALSE = 2,
+};
+
+enum RTSTEPPER_GPO_BIT
+{
+   RTSTEPPER_OUTPUT0,
+   RTSTEPPER_OUTPUT1,
+   RTSTEPPER_OUTPUT2,
+   RTSTEPPER_OUTPUT3,
+   RTSTEPPER_OUTPUT4,
+   RTSTEPPER_OUTPUT5,
+   RTSTEPPER_OUTPUT6,
+   RTSTEPPER_OUTPUT7,
+   RTSTEPPER_GPO_MAX,
 };
 
 typedef int (*rtstepper_io_error_cb)(int result);
@@ -70,6 +82,8 @@ struct rtstepper_app_session
    int clk_tail[EMCMOT_MAX_AXIS];       /* used calculate number cycles between pulses */
    int direction[EMCMOT_MAX_AXIS];      /* cycle time step direction */
    double steps_per_unit[EMCMOT_MAX_AXIS];      /* INPUT_SCALE */
+   int gpo_pin[RTSTEPPER_GPO_MAX];            /* DB25 pin number */
+   int gpo[RTSTEPPER_GPO_MAX];            /* general purpose output */
    unsigned char *buf;          /* staging step/direction buffer */
    int buf_size;                /* staging buffer size */
    int total;                   /* staging current buffer count */
@@ -114,11 +128,14 @@ extern "C"
    enum RTSTEPPER_RESULT rtstepper_is_input0_triggered(struct rtstepper_app_session *ps);
    enum RTSTEPPER_RESULT rtstepper_is_input1_triggered(struct rtstepper_app_session *ps);
    enum RTSTEPPER_RESULT rtstepper_is_input2_triggered(struct rtstepper_app_session *ps);
+   enum RTSTEPPER_RESULT rtstepper_input0_state(struct rtstepper_app_session *ps);
+   enum RTSTEPPER_RESULT rtstepper_input1_state(struct rtstepper_app_session *ps);
+   enum RTSTEPPER_RESULT rtstepper_input2_state(struct rtstepper_app_session *ps);
    enum RTSTEPPER_RESULT rtstepper_home(struct rtstepper_app_session *ps, int axis);
+   enum RTSTEPPER_RESULT rtstepper_set_gpo(struct rtstepper_app_session *ps, enum RTSTEPPER_GPO_BIT num, int value);
    void rtstepper_close_log(void);
    void rtstepper_open_log(const char *ident, int logopt);
    void rtstepper_syslog(const char *fmt, ...);
-
 #ifdef __cplusplus
 }
 #endif

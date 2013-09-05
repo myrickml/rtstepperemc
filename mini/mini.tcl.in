@@ -175,13 +175,14 @@ if { [string length $programDirectory] == 0} {
 # set HELPDIRname [emc_ini HELP_FILE DISPLAY]
 
 # set some initial values to variables to be used during a run
-emc_set_timeout 1.0
-emc_set_wait received
+#emc_set_timeout 1.0
+#emc_set_wait received
 emc_update
 set modifier Alt
 set modifierstring "Alt"
 set oldstatusstring "idle"
 set runMark 0
+set wait_timeout 1.0
 
 # -----MISC Processes Jog-----
 
@@ -238,7 +239,7 @@ set units "0"
         # puts "program_units $units $axisToJog"
 
     if {$jogType == "continuous"} {
-        emc_jog $axisToJog -$jogSpeed
+#        emc_jog $axisToJog -$jogSpeed
     } else {
         emc_jog_incr $axisToJog -$jogSpeed $jogIncrement
     }
@@ -259,7 +260,7 @@ set units "0"
         # puts "program_units $units $axisToJog"
 
     if {$jogType == "continuous"} {
-        emc_jog $axisToJog $jogSpeed
+#        emc_jog $axisToJog $jogSpeed
     } else {
         emc_jog_incr $axisToJog $jogSpeed $jogIncrement
     }
@@ -528,9 +529,9 @@ proc sendMdi {mdi} {
     set tempmode [emc_mode]
     if {$tempmode != "mdi" } {
         emc_mode mdi
-        emc_wait received
+        emc_wait received wait_timeout
         emc_mdi $mdi
-        emc_wait done
+        emc_wait done wait_timeout
         emc_mode $tempmode
     } else {
         emc_mdi $mdi
@@ -576,13 +577,13 @@ proc setKeyBindingsx {} {
 
     bind . <KeyPress-F1> {toggleEstop}
     bind . <KeyPress-F2> {toggleMachine}
-    bind . <KeyPress-F3> {showMode manual}
-    bind . <KeyPress-F4> {showMode auto}
-    bind . <KeyPress-F5> {showMode mdi}
+    bind . <KeyPress-F3> {setMode manual}
+    bind . <KeyPress-F4> {setMode auto}
+    bind . <KeyPress-F5> {setMode mdi}
     bind . <KeyPress-F6> {emc_task_plan_init}
     bind . <KeyPress-F10> {break}
     bind . <KeyPress-Pause> {toggleFeedhold}
-    bind . <Escape> {emc_abort}
+    bind . <Escape> {emc_estop on}
     bind . <Alt-KeyPress-space> {popInToggle}
     bind . <Alt-KeyPress-space> {popInToggle}
 
@@ -681,17 +682,35 @@ proc showMode {which} {
         manual {
             $mdientry configure -state disabled
             setManualBindings
-            emc_mode manual
+#            emc_mode manual
         }
         auto {
             $mdientry configure -state disabled
             setAutoBindings
-            emc_mode auto
+#            emc_mode auto
         }
         mdi {
             $mdientry configure -state normal
             focus $mdientry
             setMdiBindings
+#            emc_mode mdi
+        }
+        default {
+        }
+    }
+}
+
+proc setMode {which} {
+    global down up defbg mdientry
+
+    switch -- $which {
+        manual {
+            emc_mode manual
+        }
+        auto {
+            emc_mode auto
+        }
+        mdi {
             emc_mode mdi
         }
         default {
@@ -705,14 +724,14 @@ proc toggleEstop {} {
     global coord
     if { [emc_estop] == "on"} {
         emc_estop off
-        emc_wait done
+        emc_wait done wait_timeout
         emc_machine on
         if { [info exists coord ] } {
             catch {$coord.bzero configure -bg lightgreen -state normal}
         }
     } else {
         emc_estop on
-        emc_wait done
+        emc_wait done wait_timeout
         emc_machine off
         if { [info exists coord ] } {
             catch {$coord.bzero configure -bg lightgray -state disabled}
@@ -744,13 +763,13 @@ proc toggleFlood {} {
     }
 }
 
-proc toggleBrake {} {
-    if { [emc_brake] == "on"} {
-        emc_brake off
-    } else {
-        emc_brake on
-    }
-}
+#proc toggleBrake {} {
+#    if { [emc_brake] == "on"} {
+#        emc_brake off
+#    } else {
+#        emc_brake on
+#    }
+#}
 
 
 # Initialize feedoverride and lastfeedoverride before first calling
@@ -761,12 +780,19 @@ proc toggleFeedhold {} {
     if {$temp >= 2} {set lastfeedoverride $temp}
     switch -- $feedvalue {
         feedhold {
+            # FEEDHOLD is green, switch to red.
             set feedoverride 0
-            emc_feed_override $feedoverride
+#
+# Depending on how long FEEDHOLD is active (F=0), FEEDHOLD will create a very large step buffer. Once 
+# FEEDHOLD has been released tkmini will hang until the USB write has completed. So I have disabled
+# FEEDHOLD, use ABORT or ESTOP instead. 9/4/2013 David Suffield
+#
+#            emc_feed_override $feedoverride
         }
         continue {
+            # FEEDHOLD is red, switch to green.
             set feedoverride $lastfeedoverride
-            emc_feed_override $feedoverride
+#            emc_feed_override $feedoverride
         }
         default {
         }
@@ -966,7 +992,7 @@ $filemenu add command -label [msgcat::mc "Exit"] \
     -accelerator $modifierstring+X -underline 1
 bind . <$modifier-x> {after cancel updateStatus ; destroy . ; exit}
 
-# layout menu
+# View menu
 $viewmenu add checkbutton -label [msgcat::mc "Position Type"] \
     -variable viewArray(Position) -command {viewInfo Position}
 $viewmenu add checkbutton -label [msgcat::mc "Tool Info"] \
@@ -1042,22 +1068,27 @@ bind $feedholdbutton <ButtonPress-1> {toggleFeedhold}
 
 # initial feedhold conditions
 set feedvalue "continue"
-set feedlabel [msgcat::mc "CONTINUE"]
-set feedoverride [emc_feed_override]
+set feedlabel [msgcat::mc "FEEDHOLD"]
 set lastfeedoverride 100
+
+# Make sure rtstepperemc command_thread() has finish initializing before proceeding. Otherwise can get bogus status.
+emc_estop on
+#emc_wait done wait_timeout
+
+set feedoverride [emc_feed_override]
 toggleFeedhold
 
 # mode MDI
 set mdibutton [button $up.mdi -text [msgcat::mc "MDI"] -width 8  -takefocus 0  -borderwidth 2    ]
-bind $mdibutton <ButtonPress-1> {showMode mdi}
+bind $mdibutton <ButtonPress-1> {setMode mdi}
 
 # mode AUTO
 set autobutton [button $up.auto -text [msgcat::mc "AUTO"] -width 8  -takefocus 0  -borderwidth 2    ]
-bind $autobutton <ButtonPress-1> {showMode auto}
+bind $autobutton <ButtonPress-1> {setMode auto}
 
 # mode MANUAL
 set manbutton [button $up.manual -text [msgcat::mc "MANUAL"] -width 8  -takefocus 0  -borderwidth 2   ]
-bind $manbutton <ButtonPress-1> {showMode manual}
+bind $manbutton <ButtonPress-1> {setMode manual}
 
 # temp Settings
 # set setbutton [button $up.set -text "S"  -takefocus 0  -borderwidth 2  ]
@@ -1168,6 +1199,7 @@ if { [string length $temp] == 0} {
 set maxFeedOverride [int [expr $temp * 100 + 0.5]]
 set oridescalelength [expr $swidth / 4 ]
 
+# Feed Override slider
 set oride [frame $left.oride ]
 bind $oride <ButtonPress-1> {mText [msgcat::mc "start override popup here"]}
 set oridetop [frame $oride.top]
@@ -1599,16 +1631,16 @@ set sforbutton [button $spindframe.forward -text [msgcat::mc "Spindle Forward"] 
 set srevbutton [button $spindframe.reverse -text [msgcat::mc "Spindle Reverse"] -command {emc_spindle reverse}]
 set sstopbutton [button $spindframe.stop -text [msgcat::mc "Spindle off"] -command {emc_spindle off}]
 
-set decrbutton [button $spindframe.decr -text [msgcat::mc "Spindle Slower"] -takefocus 0]
-bind $decrbutton <ButtonPress-1> {emc_spindle decrease}
-bind $decrbutton <ButtonRelease-1> {emc_spindle constant}
+#set decrbutton [button $spindframe.decr -text [msgcat::mc "Spindle Slower"] -takefocus 0]
+#bind $decrbutton <ButtonPress-1> {emc_spindle decrease}
+#bind $decrbutton <ButtonRelease-1> {emc_spindle constant}
 
-set incrbutton [button $spindframe.incr -text [msgcat::mc "Spindle Faster"] -takefocus 0]
-bind $incrbutton <ButtonPress-1> {emc_spindle increase}
-bind $incrbutton <ButtonRelease-1> {emc_spindle constant}
+#set incrbutton [button $spindframe.incr -text [msgcat::mc "Spindle Faster"] -takefocus 0]
+#bind $incrbutton <ButtonPress-1> {emc_spindle increase}
+#bind $incrbutton <ButtonRelease-1> {emc_spindle constant}
 
-set brakebutton [button $spindframe.brake -textvariable brakelabel -relief raised \
-    -command {toggleBrake}]
+#set brakebutton [button $spindframe.brake -textvariable brakelabel -relief raised \
+#    -command {toggleBrake}]
 
 set mistbutton [button $spindframe.mist -textvariable mistlabel -relief raised -width 15 \
     -command {toggleMist}
@@ -1617,14 +1649,14 @@ set floodbutton [button $spindframe.flood -textvariable floodlabel -relief raise
     -command {toggleFlood}
     ]
 
-grid $decrbutton -column 0 -row 0 -sticky nsew
+#grid $decrbutton -column 0 -row 0 -sticky nsew
 grid $sdoing -column 1 -row 0 -sticky nsew
-grid $incrbutton -column 2 -row 0 -sticky nsew
+#grid $incrbutton -column 2 -row 0 -sticky nsew
 grid $srevbutton -column 0 -row 1 -sticky nsew
 grid $sstopbutton -column 1 -row 1 -sticky nsew
 grid $sforbutton -column 2 -row 1 -sticky nsew
 grid $mistbutton -column 0 -row 2 -sticky nsew
-grid $brakebutton -column 1 -row 2 -sticky nsew
+#grid $brakebutton -column 1 -row 2 -sticky nsew
 grid $floodbutton -column 2 -row 2 -sticky nsew
 grid columnconfigure $spindframe 0 -weight 1
 grid columnconfigure $spindframe 1 -weight 1
@@ -1777,7 +1809,7 @@ proc loadProgram {} {
     }
     if {$tempx == 0} {
         emc_abort
-        emc_wait done
+        emc_wait done wait_timeout
         emc_open $programnamestring
     }
 }
@@ -1826,11 +1858,11 @@ emc_update none
 set modelabel [msgcat::mc "MANUAL"]
 
 # Set manual bindings
-showMode manual
+setMode manual
 
 # Record that we're in manual display mode
-set modeInDisplay "manual"
-set oldmode "manual"
+set modeInDisplay ""
+#set oldmode "manual"
 set jogType incremental
 #setJogType continuous
 setJogType incremental
@@ -1879,12 +1911,8 @@ proc updateMini {} {
     global isnew oldmode workoffsets defbg offsetactive oldoffsetactive
 
     # force an update of text log
-    set thisError [emc_error]
-    set thisText [emc_operator_text]
-    set thisDisplay [emc_operator_display]
-    if {$thisError != "ok"} {mText $thisError}
+    set thisText [emc_operator_message]
     if {$thisText != "ok"} {mText $thisText}
-    if {$thisDisplay != "ok"} {mText $thisDisplay}
 
     # force an update of status
     emc_update
@@ -1922,13 +1950,13 @@ proc updateMini {} {
         set spindlelabel [msgcat::mc "SPINDLE ?"]
     }
 
-    if { [emc_brake] == "on"} {
-        set brakelabel [msgcat::mc "BRAKE ON"]
-    } elseif { [emc_brake] == "off"} {
-        set brakelabel [msgcat::mc "BRAKE OFF"]
-    } else {
-        set brakelabel [msgcat::mc "BRAKE ?"]
-    }
+#    if { [emc_brake] == "on"} {
+#        set brakelabel [msgcat::mc "BRAKE ON"]
+#    } elseif { [emc_brake] == "off"} {
+#        set brakelabel [msgcat::mc "BRAKE OFF"]
+#    } else {
+#        set brakelabel [msgcat::mc "BRAKE ?"]
+#    }
 
     if { [emc_mist] == "on"} {
         set mistlabel [msgcat::mc "MIST ON"]
@@ -2058,13 +2086,15 @@ proc updateMini {} {
     # set the feed override
     set realfeedoverride [emc_feed_override]
     if {$realfeedoverride == 0} {
+            # Set FEEDHOLD red light on.
             $feedholdbutton configure -bg red -activebackground green  -fg black -activeforeground darkgray
             set feedvalue "continue"
             set feedlabel [msgcat::mc "FEEDHOLD"]
     } else {
+            # Set FEEDHOLD green light on.
             $feedholdbutton configure -bg green -activebackground red -fg black -activeforeground white
-             set feedvalue "feedhold"
-             set feedlabel [msgcat::mc "FEEDHOLD"]
+            set feedvalue "feedhold"
+            set feedlabel [msgcat::mc "FEEDHOLD"]
     }
 
     # temporary fix for 0 jog speed problem
@@ -3944,17 +3974,6 @@ proc redraw {args} {
        set zoom [ expr $zoom+1]
    }
 
-    if { [emc_program_status] == "running" } {
-        set statusflag 1
-    # If emc is running, issue a pause command
-    # and wait until IDLE status is reached.
-        emc_pause
-    while { [emc_program_status] == "running" } {
-        # Just loop until paused
-    }
-    } else {
-        set statusflag 0
-    }
     # time the redraw proc
     set timer [clock clicks]
 
@@ -3992,10 +4011,6 @@ proc redraw {args} {
     set A $atemp; set B $btemp; set C $ctemp
 
     set timer [expr ([clock clicks] - $timer)/$ticks]
-    # If emc was forced to pause - restart.
-    if {$statusflag == 1} {
-        emc_resume
-    }
 }
 
 proc updatePlot {} {

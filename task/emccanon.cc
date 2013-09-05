@@ -100,7 +100,6 @@ static PM_QUATERNION quat(1, 0, 0, 0);
 
 static void flush_segments(void);
 
-
 /*
   These decls were from the old 3-axis canon.hh, and refer functions
   defined here that are used for convenience but no longer have decls
@@ -1051,9 +1050,6 @@ void STRAIGHT_TRAVERSE(int line_number, double x, double y, double z, double a, 
 
 void STRAIGHT_FEED(int line_number, double x, double y, double z, double a, double b, double c, double u, double v, double w)
 {
-   emc_traj_linear_move_msg_t linearMoveMsg = { {EMC_TRAJ_LINEAR_MOVE_TYPE} };
-   linearMoveMsg.feed_mode = feed_mode;
-
    from_prog(x, y, z, a, b, c, u, v, w);
    rotate_and_offset_pos(x, y, z, a, b, c, u, v, w);
    see_segment(line_number, x, y, z, a, b, c, u, v, w);
@@ -1364,7 +1360,7 @@ void ARC_FEED(int line_number,
    PmCartesian center, normal;
    emc_traj_circular_move_msg_t circularMoveMsg = { {EMC_TRAJ_CIRCULAR_MOVE_TYPE} };
    emc_traj_linear_move_msg_t linearMoveMsg = { {EMC_TRAJ_LINEAR_MOVE_TYPE} };
-   double v1, v2, a1, a2, vel, ini_maxvel, circ_maxvel, axial_maxvel = 0.0, circ_acc, axial_acc, acc = 0.0;
+   double v1, v2, a1, a2, vel, ini_maxvel, circ_maxvel, axial_maxvel = 0.0, circ_acc, acc = 0.0;
    double radius, angle, theta1, theta2, helical_length, axis_len;
    double tcircle, taxial, tmax, thelix, ta, tb, tc, da, db, dc;
    double tu, tv, tw, du, dv, dw;
@@ -1460,7 +1456,6 @@ void ARC_FEED(int line_number,
       if (axis_valid(2) && axis_len > 0.001)
       {
          axial_maxvel = v1 = FROM_EXT_LEN(AXIS_MAX_VELOCITY[2]);
-         axial_acc = a1 = FROM_EXT_LEN(AXIS_MAX_ACCELERATION[2]);
          ini_maxvel = MIN(ini_maxvel, v1);
          acc = MIN(acc, a1);
       }
@@ -1497,7 +1492,6 @@ void ARC_FEED(int line_number,
       if (axis_valid(0) && axis_len > 0.001)
       {
          axial_maxvel = v1 = FROM_EXT_LEN(AXIS_MAX_VELOCITY[0]);
-         axial_acc = a1 = FROM_EXT_LEN(AXIS_MAX_ACCELERATION[0]);
          ini_maxvel = MIN(ini_maxvel, v1);
          acc = MIN(acc, a1);
       }
@@ -1535,7 +1529,6 @@ void ARC_FEED(int line_number,
       if (axis_valid(1) && axis_len > 0.001)
       {
          axial_maxvel = v1 = FROM_EXT_LEN(AXIS_MAX_VELOCITY[1]);
-         axial_acc = a1 = FROM_EXT_LEN(AXIS_MAX_ACCELERATION[1]);
          ini_maxvel = MIN(ini_maxvel, v1);
          acc = MIN(acc, a1);
       }
@@ -2192,15 +2185,15 @@ void FLOOD_ON()
 
 void MESSAGE(char *s)
 {
-   emc_operator_display_msg_t operator_display_msg = { {EMC_OPERATOR_DISPLAY_TYPE} };
+   emc_operator_message_msg_t operator_message_msg = { {EMC_OPERATOR_MESSAGE_TYPE} };
 
    flush_segments();
 
-   operator_display_msg.id = 0;
-   strncpy(operator_display_msg.display, s, LINELEN);
-   operator_display_msg.display[LINELEN - 1] = 0;
+   operator_message_msg.id = 0;
+   strncpy(operator_message_msg.text, s, LINELEN);
+   operator_message_msg.text[LINELEN - 1] = 0;
 
-   interp_list.append((emc_command_msg_t *) & operator_display_msg);
+   interp_list.append((emc_command_msg_t *) & operator_message_msg);
 }
 
 static FILE *logfile = NULL;
@@ -2426,23 +2419,23 @@ void INIT_CANON()
 void CANON_ERROR(const char *fmt, ...)
 {
    va_list ap;
-   emc_operator_error_msg_t operator_error_msg = { {EMC_OPERATOR_ERROR_TYPE} };
+   emc_operator_message_msg_t operator_message_msg = { {EMC_OPERATOR_MESSAGE_TYPE} };
 
    flush_segments();
 
-   operator_error_msg.id = 0;
+   operator_message_msg.id = 0;
    if (fmt != NULL)
    {
       va_start(ap, fmt);
-      vsprintf(operator_error_msg.error, fmt, ap);
+      vsprintf(operator_message_msg.text, fmt, ap);
       va_end(ap);
    }
    else
    {
-      operator_error_msg.error[0] = 0;
+      operator_message_msg.text[0] = 0;
    }
 
-   interp_list.append((emc_command_msg_t *) & operator_error_msg);
+   interp_list.append((emc_command_msg_t *) & operator_message_msg);
 }
 
 /*
@@ -2644,6 +2637,7 @@ int GET_EXTERNAL_POCKETS_MAX()
    return CANON_POCKETS_MAX;
 }
 
+#if 0
 char _parameter_file_name[LINELEN];     /* Not static.Driver
                                            writes */
 
@@ -2663,6 +2657,7 @@ void GET_EXTERNAL_PARAMETER_FILE_NAME(char *file_name,  /* string: to copy
    else
       file_name[0] = 0;
 }
+#endif
 
 double GET_EXTERNAL_POSITION_X(void)
 {
@@ -2883,19 +2878,17 @@ double GET_EXTERNAL_ANALOG_INPUT(int index, double def)
    return emcStatus->motion.analog_input[index];
 }
 
-
-USER_DEFINED_FUNCTION_TYPE USER_DEFINED_FUNCTION[USER_DEFINED_FUNCTION_NUM] = { 0 };
-
-int USER_DEFINED_FUNCTION_ADD(USER_DEFINED_FUNCTION_TYPE func, int num)
+void EXEC_USER_DEFINED_FUNCTION(int index, double p_number, double q_number)
 {
-   if (num < 0 || num >= USER_DEFINED_FUNCTION_NUM)
-   {
-      return -1;
-   }
+   emc_system_cmd_msg_t emc_system_cmd_msg = { {EMC_SYSTEM_CMD_TYPE} };
 
-   USER_DEFINED_FUNCTION[num] = func;
+   flush_segments();
 
-   return 0;
+   emc_system_cmd_msg.index = index;
+   emc_system_cmd_msg.p_number = p_number;
+   emc_system_cmd_msg.q_number = q_number;
+
+   interp_list.append((emc_command_msg_t *)&emc_system_cmd_msg);
 }
 
 /*! \function SET_MOTION_OUTPUT_BIT
@@ -2912,6 +2905,7 @@ int USER_DEFINED_FUNCTION_ADD(USER_DEFINED_FUNCTION_TYPE func, int num)
 */
 void SET_MOTION_OUTPUT_BIT(int index)
 {
+#if 0
    emc_motion_set_dout_msg_t dout_msg = { {EMC_MOTION_SET_DOUT_TYPE} };
 
    flush_segments();
@@ -2922,7 +2916,7 @@ void SET_MOTION_OUTPUT_BIT(int index)
    dout_msg.now = 0;    // not immediate, but synched with motion (goes to the TP)
 
    interp_list.append((emc_command_msg_t *) & dout_msg);
-
+#endif
    return;
 }
 
@@ -2940,6 +2934,7 @@ void SET_MOTION_OUTPUT_BIT(int index)
 */
 void CLEAR_MOTION_OUTPUT_BIT(int index)
 {
+#if 0
    emc_motion_set_dout_msg_t dout_msg = { {EMC_MOTION_SET_DOUT_TYPE} };
 
    flush_segments();
@@ -2950,7 +2945,7 @@ void CLEAR_MOTION_OUTPUT_BIT(int index)
    dout_msg.now = 0;    // not immediate, but synched with motion (goes to the TP)
 
    interp_list.append((emc_command_msg_t *) & dout_msg);
-
+#endif
    return;
 }
 
@@ -2965,6 +2960,7 @@ void CLEAR_MOTION_OUTPUT_BIT(int index)
 */
 void SET_AUX_OUTPUT_BIT(int index)
 {
+#if 0
    emc_motion_set_dout_msg_t dout_msg = { {EMC_MOTION_SET_DOUT_TYPE} };
 
    flush_segments();
@@ -2975,7 +2971,7 @@ void SET_AUX_OUTPUT_BIT(int index)
    dout_msg.now = 1;    // immediate, we don't care about synching for AUX
 
    interp_list.append((emc_command_msg_t *) & dout_msg);
-
+#endif
    return;
 }
 
@@ -2990,6 +2986,7 @@ void SET_AUX_OUTPUT_BIT(int index)
 */
 void CLEAR_AUX_OUTPUT_BIT(int index)
 {
+#if 0
    emc_motion_set_dout_msg_t dout_msg = { {EMC_MOTION_SET_DOUT_TYPE} };
 
    flush_segments();
@@ -3000,7 +2997,7 @@ void CLEAR_AUX_OUTPUT_BIT(int index)
    dout_msg.now = 1;    // immediate, we don't care about synching for AUX
 
    interp_list.append((emc_command_msg_t *) & dout_msg);
-
+#endif
    return;
 }
 

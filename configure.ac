@@ -77,9 +77,20 @@
 # Version 1.8.16, des 09/09/2012  Public release.
 # Version 1.8.17, des 10/01/2012  Fixed a dongle.mutex initialization issue which showed up in Windows.
 # Version 1.8.18, des 02/28/2013  Minor changes for building on Ubuntu 12.04.
-#
+# Version 1.8.22, des 06/14/2013  Compiles with tinypy.
+# Version 1.8.25, des 06/17/2013  Added pytest.c.
+# Version 1.8.27, des 06/18/2013  Initial pytest ok, runs emc_ui_init()/emc_ui_exit().
+# Version 1.8.35, des 06/24/2013  Tkmini runs.
+# Version 1.8.37, des 06/25/2013  Step buffer regression tests ok.
+# Version 1.8.47, des 07/04/2013  Pre-release ready.
+# Version 1.8.48, des 07/07/2013  Updated udev rules for debian based distros (ie: Mint).
+# Version 1.8.57, des 07/19/2013  Re-wrote ini code. All ini reads are now thread safe.
+# Version 1.8.61, des 07/31/2013  Added support for coolant.
+# Version 1.8.83, des 08/27/2013  Got m190.py working. A python script for homing a specified axis.
+# Version 1.8.85, des 09/02/2013  Fixed tkmini hang in showMode(). Fixed mutex hang _wait_received(). 
+# Version 1.8.86, des 09/03/2013  Fixed a hang when exiting tkmini. Moved dongle mutex and write_done_cond into ui.cc. 
 
-AC_INIT([rtstepperemc], [1.8.18])
+AC_INIT([rtstepperemc], [1.8.87])
 AC_CANONICAL_HOST
 
 # Checks for programs.

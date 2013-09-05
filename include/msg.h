@@ -42,11 +42,14 @@ extern "C"
 
    int get_message(struct emc_session *ps, struct _emc_command_msg_t **msg, unsigned int *last, int *lock, const char *tag);
    int remove_message(struct emc_session *ps, struct _emc_command_msg_t *msg, int *lock, const char *tag);
-   int post_message(struct emc_session *ps, struct _emc_command_msg_t *msg, const char *tag);
-   int send_message(struct emc_session *ps, struct _emc_command_msg_t *msg, const char *tag);
+   unsigned int post_message(struct emc_session *ps, struct _emc_command_msg_t *msg, const char *tag);
+   unsigned int send_message(struct emc_session *ps, struct _emc_command_msg_t *msg, const char *tag);
    int dump_message(struct emc_session *ps);
    int peek_message(struct emc_session *ps, struct _emc_command_msg_t **msg, unsigned int *last, int *lock, const char *tag);
    const char *lookup_message(int type);
+   const char *lookup_rcs_status(int type);
+   const char *lookup_task_exec_state(int type);
+   const char *lookup_task_interp_state(int type);
 
 #ifdef __cplusplus
 }

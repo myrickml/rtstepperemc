@@ -13,7 +13,78 @@
 #include "msg.h"
 #include "bug.h"
 
-static unsigned int seq_num = 1;
+static unsigned int _seq_num = 1;
+
+const char *lookup_rcs_status(int type)
+{
+   switch (type)
+   {
+      case UNINITIALIZED_STATUS:
+         return "UNINITIALIZED_STATUS";
+      case RCS_DONE:
+         return "RCS_DONE";
+      case RCS_EXEC:
+         return "RCS_EXEC";
+      case RCS_ERROR:
+         return "RCS_ERROR";
+      default:
+         return "UNKNOWN";
+         break;
+   }
+   return (NULL);
+}
+
+const char *lookup_task_exec_state(int type)
+{
+   switch (type)
+   {
+      case EMC_TASK_EXEC_UNUSED:
+         return "EMC_TASK_EXEC_UNUSED";
+      case EMC_TASK_EXEC_ERROR:
+         return "EMC_TASK_EXEC_ERROR";
+      case EMC_TASK_EXEC_DONE:
+         return "EMC_TASK_EXEC_DONE";
+      case EMC_TASK_EXEC_WAITING_FOR_MOTION:
+         return "EMC_TASK_EXEC_WAITING_FOR_MOTION";
+      case EMC_TASK_EXEC_WAITING_FOR_MOTION_QUEUE:
+         return "EMC_TASK_EXEC_WAITING_FOR_MOTION_QUEUE";
+      case EMC_TASK_EXEC_WAITING_FOR_IO:
+         return "EMC_TASK_EXEC_WAITING_FOR_IO";
+      case EMC_TASK_EXEC_WAITING_FOR_PAUSE:
+         return "EMC_TASK_EXEC_WAITING_FOR_PAUSE";
+      case EMC_TASK_EXEC_WAITING_FOR_MOTION_AND_IO:
+         return "EMC_TASK_EXEC_WAITING_FOR_MOTION_AND_IO";
+      case EMC_TASK_EXEC_WAITING_FOR_DELAY:
+         return "EMC_TASK_EXEC_WAITING_FOR_DELAY";
+      case EMC_TASK_EXEC_WAITING_FOR_SYSTEM_CMD:
+         return "EMC_TASK_EXEC_WAITING_FOR_SYSTEM_CMD";
+      default:
+         return "UNKNOWN";
+         break;
+   }
+   return (NULL);
+}
+
+const char *lookup_task_interp_state(int type)
+{
+   switch (type)
+   {
+      case EMC_TASK_INTERP_UNUSED:
+         return "EMC_TASK_INTERP_UNUSED";
+      case EMC_TASK_INTERP_IDLE:
+         return "EMC_TASK_INTERP_IDLE";
+      case EMC_TASK_INTERP_READING:
+         return "EMC_TASK_INTERP_READING";
+      case EMC_TASK_INTERP_PAUSED:
+         return "EMC_TASK_INTERP_PAUSED";
+      case EMC_TASK_INTERP_WAITING:
+         return "EMC_TASK_INTERP_WAITING";
+      default:
+         return "UNKNOWN";
+         break;
+   }
+   return (NULL);
+}
 
 const char *lookup_message(int type)
 {
@@ -121,12 +192,12 @@ const char *lookup_message(int type)
       return "EMC_MOTION_ADAPTIVE_TYPE";
    case EMC_MOTION_STAT_TYPE:
       return "EMC_MOTION_STAT_TYPE";
-   case EMC_OPERATOR_DISPLAY_TYPE:
-      return "EMC_OPERATOR_DISPLAY_TYPE";
-   case EMC_OPERATOR_ERROR_TYPE:
-      return "EMC_OPERATOR_ERROR_TYPE";
-   case EMC_OPERATOR_TEXT_TYPE:
-      return "EMC_OPERATOR_TEXT_TYPE";
+   case EMC_MOTION_DISABLE_DIN_ABORT_TYPE:
+      return "EMC_MOTION_DISABLE_DIN_ABORT_TYPE";
+   case EMC_MOTION_ENABLE_DIN_ABORT_TYPE:
+      return "EMC_MOTION_ENABLE_DIN_ABORT_TYPE";
+   case EMC_OPERATOR_MESSAGE_TYPE:
+      return "EMC_OPERATOR_MESSAGE_TYPE";
    case EMC_SYSTEM_CMD_TYPE:
       return "EMC_SYSTEM_CMD_TYPE";
    case EMC_SPINDLE_BRAKE_ENGAGE_TYPE:
@@ -285,6 +356,14 @@ const char *lookup_message(int type)
       return "EMC_TRAJ_STAT_TYPE";
    case EMC_TRAJ_STEP_TYPE:
       return "EMC_TRAJ_STEP_TYPE";
+   case EMC_QUIT_TYPE:
+      return "EMC_QUIT_TYPE";
+   case EMC_COMMAND_DONE_TYPE:
+      return "EMC_COMMAND_DONE_TYPE";
+//   case EMC_MCODE_QUIT_TYPE:
+//      return "EMC_MCODE_QUIT_TYPE";
+//   case EMC_MCODE_CMD_TYPE:
+//      return "EMC_MCODE_CMD_TYPE";
    default:
       return "UNKNOWN";
       break;
@@ -373,35 +452,37 @@ int remove_message(struct emc_session *ps, struct _emc_command_msg_t *message, i
 }       /* remove_message */
 
 /* Add specified message to the message queue. */
-int post_message(struct emc_session *ps, struct _emc_command_msg_t *message, const char *tag)
+unsigned int post_message(struct emc_session *ps, struct _emc_command_msg_t *message, const char *tag)
 {
+   unsigned int n;
+
    pthread_mutex_lock(&ps->mutex);
 
-   message->msg.n = seq_num++;
-   if (seq_num == 0)
-      seq_num = 1;      /* wrapped, don't use zero */
+   n = _seq_num;
+   message->msg.n = _seq_num++;
+   if (_seq_num == 0)
+      _seq_num = 1;      /* wrapped, don't use zero */
 
    DBG("[%s] posting message id=%s n=%d\n", tag, lookup_message(message->msg.type), message->msg.n);
    list_add_tail(&message->msg.list, &ps->head.list);
    pthread_cond_broadcast(&ps->event_cond);     /* signal new message */
    pthread_mutex_unlock(&ps->mutex);
-   return 0;
+   return n;
 }       /* post_message */
 
-int send_message(struct emc_session *ps, emc_command_msg_t * message, const char *tag)
+unsigned int send_message(struct emc_session *ps, emc_command_msg_t * message, const char *tag)
 {
    struct _emc_command_msg_t *em;
 
    if ((em = (struct _emc_command_msg_t *) malloc(sizeof(struct _emc_command_msg_t))) == NULL)
    {
       BUG("send_message: malloc error\n");
-      return 1;
+      return 0;
    }
    else
    {
       memcpy(em, message, sizeof(struct _emc_command_msg_t));
-      post_message(ps, em, tag);
-      return 0;
+      return post_message(ps, em, tag);
    }
 }
 

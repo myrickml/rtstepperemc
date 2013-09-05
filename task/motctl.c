@@ -567,11 +567,9 @@ static void do_forward_kins(void)
    at the traj rate */
 
    double joint_pos[EMCMOT_MAX_JOINTS] = { 0, };
-   int joint_num, all_homed, all_at_home, result;
+   int joint_num, result;
    emcmot_joint_t *joint;
 
-   all_homed = 1;
-   all_at_home = 1;
    /* copy joint position feedback to local array */
    for (joint_num = 0; joint_num < emcmotStatus.traj.axes; joint_num++)
    {
@@ -579,22 +577,6 @@ static void do_forward_kins(void)
       joint = &joints[joint_num];
       /* copy feedback */
       joint_pos[joint_num] = joint->pos_fb;
-      /* check for homed, only if the current joint is active */
-      if (!GET_JOINT_ACTIVE_FLAG(joint))
-      {
-         /* if joint is not active, don't even look at its limits */
-         continue;
-      }
-
-      if (!GET_JOINT_HOMED_FLAG(joint))
-      {
-         all_homed = 0;
-         all_at_home = 0;
-      }
-      else if (!GET_JOINT_AT_HOME_FLAG(joint))
-      {
-         all_at_home = 0;
-      }
    }
    switch (emcmotStatus.traj.kinematics_type)
    {
@@ -1060,8 +1042,10 @@ static void handle_jogwheels(void)
 
 static void get_pos_cmds(long period)
 {
-   int joint_num, all_homed, all_at_home, result;
+   struct emc_session *ps = &session;
+   int joint_num, result;
    emcmot_joint_t *joint;
+   double sm_pos[EMCMOT_MAX_AXIS];
    double positions[EMCMOT_MAX_JOINTS];
 /*! \todo Another #if 0 */
 #if 0
@@ -1081,16 +1065,6 @@ static void get_pos_cmds(long period)
       joint = &joints[joint_num];
       /* copy coarse command */
       positions[joint_num] = joint->coarse_pos;
-      /* check for homed */
-      if (!GET_JOINT_HOMED_FLAG(joint))
-      {
-         all_homed = 0;
-         all_at_home = 0;
-      }
-      else if (!GET_JOINT_AT_HOME_FLAG(joint))
-      {
-         all_at_home = 0;
-      }
    }
 
 #if 0
@@ -1134,9 +1108,8 @@ static void get_pos_cmds(long period)
             /* calculate desired velocity */
             if (joint->free_tp_enable)
             {
-               /* planner enabled, request a velocity that tends to drive
-                  pos_err to zero, but allows for stopping without position
-                  overshoot */
+               /* Got a valid jog request, planner enabled, request a velocity that tends to drive
+                  pos_err to zero, but allows for stopping without position overshoot. */
                pos_err = joint->free_pos_cmd - joint->pos_cmd;
                /* positive and negative errors require some sign flipping to
                   avoid sqrt(negative) */
@@ -1247,9 +1220,7 @@ static void get_pos_cmds(long period)
          emcmotStatus.overrideLimitMask = 0;
          emcmotDebug.overriding = 0;
       }
-      /*! \todo FIXME - this should run at the traj rate */
-      all_homed = 1;
-      all_at_home = 1;
+
       switch (emcmotStatus.traj.kinematics_type)
       {
 
@@ -1492,7 +1463,7 @@ static void get_pos_cmds(long period)
       {
          /* just hit the limit */
          BUG("Exceeded soft limit\n");
-         emcOperatorError(0, EMC_I18N("Exceeded soft limit"));
+         emcOperatorMessage(0, EMC_I18N("Exceeded soft limit"));
          SET_MOTION_ERROR_FLAG(1);
          emcmotStatus.on_soft_limit = 1;
       }
@@ -1500,6 +1471,33 @@ static void get_pos_cmds(long period)
    else
    {
       emcmotStatus.on_soft_limit = 0;
+   }
+
+   /* Check for any dout here. */
+   if (emcmotStatus.dout.active)
+   {
+      emcmotStatus.dout.active = 0;
+      if (rtstepper_set_gpo(&ps->dongle, emcmotStatus.dout.output_num, emcmotStatus.dout.value) == RTSTEPPER_R_OK)
+      {
+         if (!GET_MOTION_INPOS_FLAG())
+         {
+            /* A move command is active so dout will be synchronized. */ 
+            DBG("Setting dout output=%d value=%d while moving.\n", emcmotStatus.dout.output_num, emcmotStatus.dout.value);
+         }
+         else
+         {
+            if (!emcmotStatus.dout.sync)
+            {
+               /* No move command expected, so fake a move command for one control cycle. */
+               for (joint_num = 0; joint_num < emcmotStatus.traj.axes; joint_num++)
+               {
+                  joint = &joints[joint_num];
+                  sm_pos[joint_num] = joint->motor_pos_cmd;  /* use the current commanded position */
+               }         
+               rtstepper_encode(&ps->dongle, tpGetExecId(&emcmotDebug.queue), sm_pos, emcmotStatus.traj.axes);
+            }
+         }
+      }
    }
 }       /* get_pos_cmds() */
 
@@ -1864,6 +1862,7 @@ static void output_pos_cmds(void)
       rtstepper_start_xfr(&ps->dongle, tpGetExecId(&emcmotDebug.queue), emcmotStatus.traj.axes);
    }
 #endif
+
 }       /* output_pos_cmds() */
 
 static void update_status(void)

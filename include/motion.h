@@ -120,7 +120,7 @@ typedef enum
    EMCMOT_SET_CIRCLE,   /* queue up a circular move */
    EMCMOT_SET_TELEOP_VECTOR,    /* Move at a given velocity but in
                                    world cartesian coordinates, not
-                                   in joint space like EMCMOT_JOG_* */
+                                   in joint space like EMCMOT_JOG_ */
 
    EMCMOT_CLEAR_PROBE_FLAGS,    /* clears probeTripped flag */
    EMCMOT_PROBE,        /* go to pos, stop if probe trips, record
@@ -161,6 +161,9 @@ typedef enum
    EMCMOT_SET_DIRECTION_PIN,    /* rt-stepper DB25 pin number */
    EMCMOT_SET_STEP_POLARITY,    /* rt-stepper DB25 pin polarity */
    EMCMOT_SET_DIRECTION_POLARITY,    /* rt-stepper DB25 pin polarity */
+   EMCMOT_ENABLE_DIN_ABORT,    /* enable rt-stepper input0-2 abort */
+   EMCMOT_DISABLE_DIN_ABORT,    /* disable rt-stepper input0-2 abort */
+   EMCMOT_SYSTEM_CMD,       /* exec user defined mcode script (m100-m199) */ 
 } cmd_code_t;
 
 /* this enum lists the possible results of a command */
@@ -223,7 +226,7 @@ typedef struct _emcmot_command_t
    double maxFerror;            /* max following error */
    int wdWait;                  /* cycle to wait before toggling wd */
    int debug;                   /* debug level, from DEBUG in .ini file */
-   unsigned char now, out, start, end;  /* these are related to synched AOUT/DOUT. now=wether now or synched, out = which gets set, start=start value, end=end value */
+  //   unsigned char now, out, start, end;  /* these are related to synched AOUT/DOUT. now=wether now or synched, out = which gets set, start=start value, end=end value */
    unsigned char mode;          /* used for turning overrides etc. on/off */
    double comp_nominal, comp_forward, comp_reverse;     /* compensation triplet, nominal, forward, reverse */
    unsigned char probe_type;    /* ~1 = error if probe operation is unsuccessful (ngc default)
@@ -232,6 +235,11 @@ typedef struct _emcmot_command_t
                                    |2 = move until probe clears */
    EmcPose tool_offset;         /* TLO */
    unsigned char tail;          /* flag count for mutex detect */
+   int index;                   /* user defined mcode */
+   double p_number, q_number;   /* user defined mcode parameters */
+   int output_num, value, sync;  /* dout parameters */
+   int input_num;               /* din parameter */
+   int ticket;                  /* 0 = no ticket (no gui response needed) */
 } emcmot_command_t;
 
 /* motion flag type */
@@ -548,7 +556,7 @@ typedef struct _emcmot_config_t
 } emcmot_config_t;
 
 /*********************************
-        DEBUG STRUCTURE
+        TRAJECTORY PLANNER STRUCTURE (not debug)
 *********************************/
 
 typedef struct emcmot_debug_t
@@ -602,6 +610,111 @@ typedef struct emcmot_debug_t
    double last_time;
    unsigned char tail;          /* flag count for mutex detect */
 } emcmot_debug_t;
+
+/******************
+   Task Structures
+******************/
+
+/* Size of certain arrays (same defines as rs274ngc.h) */
+#define ACTIVE_G_CODES_ 16
+#define ACTIVE_M_CODES_ 10
+#define ACTIVE_SETTINGS_ 3
+
+// types for EMC_TASK mode
+enum EMC_TASK_MODE
+{
+   EMC_TASK_MODE_UNUSED = 0,
+   EMC_TASK_MODE_MANUAL = 1,
+   EMC_TASK_MODE_AUTO = 2,
+   EMC_TASK_MODE_MDI = 3
+};
+
+// types for EMC_TASK state
+enum EMC_TASK_STATE
+{
+   EMC_TASK_STATE_UNUSED = 0,
+   EMC_TASK_STATE_ESTOP = 1,
+   EMC_TASK_STATE_ESTOP_RESET = 2,
+   EMC_TASK_STATE_OFF = 3,
+   EMC_TASK_STATE_ON = 4
+};
+
+// types for EMC_TASK execState
+enum EMC_TASK_EXEC
+{
+   EMC_TASK_EXEC_UNUSED = 0,
+   EMC_TASK_EXEC_ERROR = 1,
+   EMC_TASK_EXEC_DONE = 2,
+   EMC_TASK_EXEC_WAITING_FOR_MOTION = 3,
+   EMC_TASK_EXEC_WAITING_FOR_MOTION_QUEUE = 4,
+   EMC_TASK_EXEC_WAITING_FOR_IO = 5,
+   EMC_TASK_EXEC_WAITING_FOR_PAUSE = 6,
+   EMC_TASK_EXEC_WAITING_FOR_MOTION_AND_IO = 7,
+   EMC_TASK_EXEC_WAITING_FOR_DELAY = 8,
+   EMC_TASK_EXEC_WAITING_FOR_SYSTEM_CMD = 9
+};
+
+// types for EMC_TASK interpState
+enum EMC_TASK_INTERP
+{
+   EMC_TASK_INTERP_UNUSED = 0,
+   EMC_TASK_INTERP_IDLE = 1,
+   EMC_TASK_INTERP_READING = 2,
+   EMC_TASK_INTERP_PAUSED = 3,
+   EMC_TASK_INTERP_WAITING = 4
+};
+
+// types for EMC_TASK planState
+enum EMC_TASK_PLAN
+{
+   EMC_TASK_PLAN_UNUSED = 0,
+   EMC_TASK_PLAN_ERROR = 1,
+   EMC_TASK_PLAN_DONE = 2,
+};
+
+// types for motion control
+enum EMC_TRAJ_MODE
+{
+   EMC_TRAJ_MODE_UNUSED = 0,
+   EMC_TRAJ_MODE_FREE = 1,      // independent-axis motion,
+   EMC_TRAJ_MODE_COORD = 2,     // coordinated-axis motion,
+   EMC_TRAJ_MODE_TELEOP = 3     // velocity based world coordinates motion,
+};
+
+#include "emc_msg.h"
+
+typedef struct _emctask_status_t        // EMC_TASK_STAT
+{
+   enum RCS_STATUS status;
+   unsigned int echo_serial_number;
+   enum EMC_COMMAND_MSG_TYPE command_type;
+   enum EMC_TASK_MODE mode;        // EMC_TASK_MODE_MANUAL, etc.
+   enum EMC_TASK_STATE state;      // EMC_TASK_STATE_ESTOP, etc.
+   enum EMC_TASK_EXEC execState;   // EMC_DONE,WAITING_FOR_MOTION, etc.
+   enum EMC_TASK_INTERP interpState;       // EMC_IDLE,READING,PAUSED,WAITING
+   enum EMC_TASK_PLAN planState;
+   int motionLine;              // line motion is executing-- may lag
+   int currentLine;             // line currently executing
+   int readLine;                // line interpreter has read to
+   int optional_stop_state;     // state of optional stop (== ON means we stop on M1)
+   int block_delete_state;      // state of block delete (== ON means we ignore lines starting with "/")
+   int input_timeout;           // has a timeout happened on digital input
+   char file[LINELEN];
+   char command[LINELEN];
+   EmcPose origin;              // origin, in user units, currently active
+   double rotation_xy;
+   EmcPose toolOffset;          // tool offset, in general pose form
+   int activeGCodes[ACTIVE_G_CODES_];
+   int activeMCodes[ACTIVE_M_CODES_];
+   double activeSettings[ACTIVE_SETTINGS_];
+   int programUnits;            // CANON_UNITS_INCHES,MM,CM
+   unsigned int heartbeat;      /* changes every cycle */
+
+   int interpreter_errcode;     // return value from rs274ngc function 
+   // (only useful for new interpreter.)
+   int task_paused;             // non-zero means task is paused
+   double delayLeft;            // delay time left of G4, M66..
+} emctask_status_t;
 
 /******************
    IO Structures
@@ -673,8 +786,8 @@ typedef struct
 typedef struct _emcio_status_t  // EMC_IO_STAT
 {
    enum RCS_STATUS status;
-   int echo_serial_number;
-   int command_type;
+   unsigned int echo_serial_number;
+   enum EMC_COMMAND_MSG_TYPE command_type;
 
    // aggregate of IO-related status classes
    emctool_status_t tool;
@@ -684,102 +797,13 @@ typedef struct _emcio_status_t  // EMC_IO_STAT
 } emcio_status_t;
 
 /******************
-   Task Structures
-******************/
-
-/* Size of certain arrays (same defines as rs274ngc.h) */
-#define ACTIVE_G_CODES_ 16
-#define ACTIVE_M_CODES_ 10
-#define ACTIVE_SETTINGS_ 3
-
-// types for EMC_TASK mode
-enum EMC_TASK_MODE_ENUM
-{
-   EMC_TASK_MODE_MANUAL = 1,
-   EMC_TASK_MODE_AUTO = 2,
-   EMC_TASK_MODE_MDI = 3
-};
-
-// types for EMC_TASK state
-enum EMC_TASK_STATE_ENUM
-{
-   EMC_TASK_STATE_ESTOP = 1,
-   EMC_TASK_STATE_ESTOP_RESET = 2,
-   EMC_TASK_STATE_OFF = 3,
-   EMC_TASK_STATE_ON = 4
-};
-
-// types for EMC_TASK execState
-enum EMC_TASK_EXEC_ENUM
-{
-   EMC_TASK_EXEC_ERROR = 1,
-   EMC_TASK_EXEC_DONE = 2,
-   EMC_TASK_EXEC_WAITING_FOR_MOTION = 3,
-   EMC_TASK_EXEC_WAITING_FOR_MOTION_QUEUE = 4,
-   EMC_TASK_EXEC_WAITING_FOR_IO = 5,
-   EMC_TASK_EXEC_WAITING_FOR_PAUSE = 6,
-   EMC_TASK_EXEC_WAITING_FOR_MOTION_AND_IO = 7,
-   EMC_TASK_EXEC_WAITING_FOR_DELAY = 8,
-   EMC_TASK_EXEC_WAITING_FOR_SYSTEM_CMD = 9
-};
-
-// types for EMC_TASK interpState
-enum EMC_TASK_INTERP_ENUM
-{
-   EMC_TASK_INTERP_IDLE = 1,
-   EMC_TASK_INTERP_READING = 2,
-   EMC_TASK_INTERP_PAUSED = 3,
-   EMC_TASK_INTERP_WAITING = 4
-};
-
-// types for motion control
-enum EMC_TRAJ_MODE_ENUM
-{
-   EMC_TRAJ_MODE_FREE = 1,      // independent-axis motion,
-   EMC_TRAJ_MODE_COORD = 2,     // coordinated-axis motion,
-   EMC_TRAJ_MODE_TELEOP = 3     // velocity based world coordinates motion,
-};
-
-typedef struct _emctask_status_t        // EMC_TASK_STAT
-{
-   enum RCS_STATUS status;
-   int echo_serial_number;
-   int command_type;
-   enum EMC_TASK_MODE_ENUM mode;        // EMC_TASK_MODE_MANUAL, etc.
-   enum EMC_TASK_STATE_ENUM state;      // EMC_TASK_STATE_ESTOP, etc.
-   enum EMC_TASK_EXEC_ENUM execState;   // EMC_DONE,WAITING_FOR_MOTION, etc.
-   enum EMC_TASK_INTERP_ENUM interpState;       // EMC_IDLE,READING,PAUSED,WAITING
-   int motionLine;              // line motion is executing-- may lag
-   int currentLine;             // line currently executing
-   int readLine;                // line interpreter has read to
-   int optional_stop_state;     // state of optional stop (== ON means we stop on M1)
-   int block_delete_state;      // state of block delete (== ON means we ignore lines starting with "/")
-   int input_timeout;           // has a timeout happened on digital input
-   char file[LINELEN];
-   char command[LINELEN];
-   EmcPose origin;              // origin, in user units, currently active
-   double rotation_xy;
-   EmcPose toolOffset;          // tool offset, in general pose form
-   int activeGCodes[ACTIVE_G_CODES_];
-   int activeMCodes[ACTIVE_M_CODES_];
-   double activeSettings[ACTIVE_SETTINGS_];
-   int programUnits;            // CANON_UNITS_INCHES,MM,CM
-   unsigned int heartbeat;      /* changes every cycle */
-
-   int interpreter_errcode;     // return value from rs274ngc function 
-   // (only useful for new interpreter.)
-   int task_paused;             // non-zero means task is paused
-   double delayLeft;            // delay time left of G4, M66..
-} emctask_status_t;
-
-/******************
    Axis Structures
 ******************/
 
 typedef struct _emcaxis_status_t        // EMC_AXIS_STAT
 {
    enum RCS_STATUS status;
-   int echo_serial_number;
+   unsigned int echo_serial_number;
 
    // configuration parameters
    unsigned char axisType;      // EMC_AXIS_LINEAR, EMC_AXIS_ANGULAR
@@ -809,17 +833,21 @@ typedef struct _emcaxis_status_t        // EMC_AXIS_STAT
    unsigned char overrideLimits;        // non-zero means limits are overridden
 } emcaxis_status_t;
 
+/*******************
+   Motion Structures
+********************/
+
 typedef struct _emctraj_status_t        // EMC_TRAJ_STAT
 {
    enum RCS_STATUS status;
-   int echo_serial_number;
+   unsigned int echo_serial_number;
 
    double linearUnits;          // units per mm
    double angularUnits;         // units per degree
    double cycleTime;            // cycle time, in seconds
    int axes;                    // maximum axis number
    int axis_mask;               // mask of axes actually present
-   enum EMC_TRAJ_MODE_ENUM mode;        // EMC_TRAJ_MODE_FREE,
+   enum EMC_TRAJ_MODE mode;        // EMC_TRAJ_MODE_FREE,
    // EMC_TRAJ_MODE_COORD
    int enabled;                 // non-zero means enabled
 
@@ -868,6 +896,20 @@ typedef struct _emcspindle_status_t
    double css_factor;
    double xoffset;
 } emcspindle_status_t;
+
+enum EMC_DIN_STATE
+{
+   EMC_DIN_FALSE = 0,
+   EMC_DIN_TRUE = 1,
+};
+
+typedef struct _emcdout_status_t
+{
+   int active;         // 0=no, 1=yes
+   int output_num;     // output0-7
+   int value;        // 0=false, 1=true
+   int sync;         // 0=output immediately, 1=output with move command
+} emcdout_status_t;
 
 typedef struct _emcmot_status_t
 {
@@ -947,6 +989,7 @@ typedef struct _emcmot_status_t
    EmcPose tool_offset;
 
    emcspindle_status_t spindle;
+   emcdout_status_t dout;
 
    int synch_di[EMCMOT_MAX_DIO];        // motion inputs queried by interp
    int synch_do[EMCMOT_MAX_DIO];        // motion outputs queried by interp
@@ -996,14 +1039,14 @@ typedef struct _emcmot_status_t
 #define SET_JOINT_FAULT_FLAG(joint,fl) if (fl) (joint)->flag |= EMCMOT_JOINT_FAULT_BIT; else (joint)->flag &= ~EMCMOT_JOINT_FAULT_BIT;
 
 /***********************
-   Top Level Structures
+   Top Level Status Structures
 ************************/
 
 typedef struct
 {
    enum RCS_STATUS status;
-   int echo_serial_number;
-   int command_type;
+   unsigned int echo_serial_number;
+   enum EMC_COMMAND_MSG_TYPE command_type;
 
    /* top level status */
    emctask_status_t task;       // EMC_TASK_STAT

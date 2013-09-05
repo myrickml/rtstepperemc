@@ -14,7 +14,13 @@
 #ifndef _EMC_H
 #define _EMC_H
 
+#include <stddef.h>
 #include <pthread.h>
+
+#ifndef LINELEN
+   #define LINELEN 255
+#endif
+
 #include "motion.h"
 #include "emc_msg.h"
 #include "rtstepper.h"
@@ -25,17 +31,32 @@
    #define DLL_EXPORT __attribute__ ((visibility("default")))
 #endif
 
+#define DUMMY_VARIABLE __attribute__((__unused__))
+
+struct mcode_args_t
+{
+   int index;     /* output0-7 */
+   double p1;     /* parameter 1 */
+   double p2;    /* parameter 2 */
+   unsigned int ticket;
+};
+
 struct emc_session
 {
-   int control_thread_active;
-   int control_thread_abort;
-   pthread_t control_thread_tid;
+   int command_thread_active;
+   int command_thread_abort;
+   pthread_t command_thread_tid;
    pthread_mutex_t mutex;
    pthread_cond_t event_cond;
-   pthread_cond_t control_thread_done_cond;
+   pthread_cond_t command_thread_done_cond;
    pthread_cond_t control_cycle_thread_done_cond;
+   pthread_cond_t mcode_thread_done_cond;
    int control_cycle_thread_active;
    pthread_t control_cycle_thread_tid;
+   int mcode_thread_active;
+   int mcode_thread_abort;
+   int mcode_script_active;
+   pthread_t mcode_thread_tid;
    struct rtstepper_app_session dongle;
    struct _emc_msg_t head;
 };
@@ -44,16 +65,11 @@ struct emc_session
 
 enum EMC_RESULT
 {
+   EMC_R_INVALID_INI_KEY = -4,
+   EMC_R_INVALID_INI_FILE = -3,
    EMC_R_TIMEOUT = -2,
    EMC_R_ERROR = -1,
    EMC_R_OK = 0,
-};
-
-enum EMC_UI_WAIT_TYPE
-{
-   EMC_UI_WAIT_NONE = 1,
-   EMC_UI_WAIT_RECEIVED,
-   EMC_UI_WAIT_DONE
 };
 
 // Localization helper.
@@ -89,8 +105,7 @@ extern int EMC_DEBUG;
 /* default name of EMC ini file */
 #define DEFAULT_EMC_INIFILE EMC2_DEFAULT_INIFILE
 
-/* default name of EMC NML file */
-#define DEFAULT_EMC_NMLFILE EMC2_DEFAULT_NMLFILE
+#define DEFAULT_EMC_PROGRAM_PREFIX EMC2_DEFAULT_PROGRAM_PREFIX
 
 /* cycle time for emctask, in seconds */
 #define DEFAULT_EMC_TASK_CYCLE_TIME 0.100
@@ -136,6 +151,7 @@ typedef double EmcAngularUnits;
 extern char EMC_INIFILE[LINELEN];
 extern char EMC_NMLFILE[LINELEN];
 extern char RS274NGC_STARTUP_CODE[LINELEN];
+extern char EMC_PROGRAM_PREFIX[LINELEN];
 extern double EMC_TASK_CYCLE_TIME;
 extern double EMC_IO_CYCLE_TIME;
 extern int EMC_TASK_INTERP_MAX_LEN;
@@ -148,6 +164,7 @@ extern struct EmcPose TOOL_CHANGE_POSITION;
 extern unsigned char HAVE_TOOL_CHANGE_POSITION;
 extern struct EmcPose TOOL_HOLDER_CLEAR;
 extern unsigned char HAVE_TOOL_HOLDER_CLEAR;
+extern const char *USER_HOME_DIR;
 
 //extern int num_axes;
 //extern double VELOCITY;
@@ -174,6 +191,10 @@ extern emcmot_joint_t joints[EMCMOT_MAX_JOINTS];
 extern KINEMATICS_FORWARD_FLAGS fflags;
 extern KINEMATICS_INVERSE_FLAGS iflags;
 
+extern const char _gui_tag[];
+extern const char _mcd_tag[];
+extern const char _ctl_tag[];
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -182,9 +203,7 @@ extern "C"
    int emcGetArgs(int argc, char *argv[]);
    void emcInitGlobals();
    void esleep(double seconds_to_sleep);
-   int emcOperatorError(int id, const char *fmt, ...);
-   int emcOperatorText(int id, const char *fmt, ...);
-   int emcOperatorDisplay(int id, const char *fmt, ...);
+   int emcOperatorMessage(int id, const char *fmt, ...);
    int emc_io_error_cb(int result);
 
    int emcAxisSetBacklash(int axis, double backlash);
@@ -224,7 +243,7 @@ extern "C"
    int emcTrajSetAxes(int axes, int axismask);
    int emcTrajSetUnits(double linearUnits, double angularUnits);
    int emcTrajSetCycleTime(double cycleTime);
-   int emcTrajSetMode(enum EMC_TRAJ_MODE_ENUM mode);
+   int emcTrajSetMode(enum EMC_TRAJ_MODE mode);
    int emcTrajSetTeleopVector(EmcPose vel);
    int emcTrajSetVelocity(double vel, double ini_maxvel);
    int emcTrajSetAcceleration(double acc);
@@ -279,12 +298,10 @@ extern "C"
    int emcTaskPlanInit();
    int emcTaskPlanExit();
    int emcTaskUpdate(emctask_status_t * stat);
-   int emcTaskPlan(void);
-   int emcTaskExecute(void);
+   void emcTaskPlan(emc_command_msg_t *emcCommand);
+   void emcTaskExecute(void);
    int emcTaskPlanCommand(char *cmd);
    int emcTaskPlanRead();
-   int emcTaskPlanExecute(const char *command);
-   int emcTaskPlanExecuteEx(const char *command, int line_number);
    int emcTaskPlanOpen(const char *file);
    int emcTaskPlanClose();
 
@@ -341,6 +358,7 @@ extern "C"
    void emcmot_refresh_jog_limits(emcmot_joint_t * joint);
    int emcmotSetTrajCycleTime(double secs);
    int emcmotSetServoCycleTime(double secs);
+   int emcmotExecScript(int index, double p1, double p2, int type);
 
    int emcInit();
    int emcHalt();
@@ -348,61 +366,59 @@ extern "C"
 
 //   int emcUpdate(emc_status_t * stat);
 
-   enum EMC_RESULT emc_ui_init(const char *ini_file);
-   enum EMC_RESULT emc_ui_exit(void);
-   enum EMC_RESULT emc_ui_update_status(void);
-   enum EMC_RESULT emc_ui_update_operator_error(char *buf, int buf_size);
-   enum EMC_RESULT emc_ui_update_operator_text(char *buf, int buf_size);
-   enum EMC_RESULT emc_ui_update_operator_display(char *buf, int buf_size);
-/* Wait for last command to be received by control thread. */
-   enum EMC_RESULT emc_ui_command_wait_received(void);
+   DLL_EXPORT void *emc_ui_open(const char *ini_file);
+   DLL_EXPORT enum EMC_RESULT emc_ui_close(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_update_status(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_get_operator_message(void *hd, char *buf, int buf_size);
+   DLL_EXPORT enum EMC_RESULT emc_ui_operator_message(void *hd, const char *buf);
+/* Wait for last command to be received by command thread. */
+   DLL_EXPORT enum EMC_RESULT emc_ui_wait_command_received(void *hd, double timeout);
 /* Wait for last command to finish executing. */
-   enum EMC_RESULT emc_ui_command_wait_done(void);
-   enum EMC_RESULT emc_ui_set_timeout(double timeout);
-   double emc_ui_get_timeout(void);
-   enum EMC_RESULT emc_ui_set_wait_type(enum EMC_UI_WAIT_TYPE type);
-   enum EMC_UI_WAIT_TYPE emc_ui_get_wait_type(void);
-   enum EMC_RESULT emc_ui_send_estop(void);
-   enum EMC_RESULT emc_ui_send_estop_reset(void);
-   enum EMC_RESULT emc_ui_send_machine_on(void);
-   enum EMC_RESULT emc_ui_send_machine_off(void);
-   enum EMC_RESULT emc_ui_send_manual(void);
-   enum EMC_RESULT emc_ui_send_auto(void);
-   enum EMC_RESULT emc_ui_send_mdi(void);
-   enum EMC_RESULT emc_ui_send_mist_on(void);
-   enum EMC_RESULT emc_ui_send_mist_off(void);
-   enum EMC_RESULT emc_ui_send_flood_on(void);
-   enum EMC_RESULT emc_ui_send_flood_off(void);
-   enum EMC_RESULT emc_ui_send_lube_on(void);
-   enum EMC_RESULT emc_ui_send_lube_off(void);
-   enum EMC_RESULT emc_ui_send_spindle_forward(void);
-   enum EMC_RESULT emc_ui_send_spindle_reverse(void);
-   enum EMC_RESULT emc_ui_send_spindle_off(void);
-   enum EMC_RESULT emc_ui_send_spindle_increase(void);
-   enum EMC_RESULT emc_ui_send_spindle_decrease(void);
-   enum EMC_RESULT emc_ui_send_spindle_constant(void);
-   enum EMC_RESULT emc_ui_send_brake_engage(void);
-   enum EMC_RESULT emc_ui_send_brake_release(void);
-   enum EMC_RESULT emc_ui_send_load_tool_table(const char *file);
-   enum EMC_RESULT emc_ui_send_tool_set_offset(int toolno, double zoffset, double diameter);
-   enum EMC_RESULT emc_ui_send_override_limits(int axis);
-   enum EMC_RESULT emc_ui_send_mdi_cmd(const char *mdi);
-   enum EMC_RESULT emc_ui_send_home(int axis);
-   enum EMC_RESULT emc_ui_send_unhome(int axis);
-   enum EMC_RESULT emc_ui_send_jog_stop(int axis);
-   enum EMC_RESULT emc_ui_send_jog_cont(int axis, double speed);
-   enum EMC_RESULT emc_ui_send_jog_incr(int axis, double speed, double incr);
-   enum EMC_RESULT emc_ui_send_feed_override(double override);
-   enum EMC_RESULT emc_ui_send_task_plan_init(void);
-   enum EMC_RESULT emc_ui_send_program_open(const char *program);
-   enum EMC_RESULT emc_ui_send_program_run(int line);
-   enum EMC_RESULT emc_ui_send_program_pause(void);
-   enum EMC_RESULT emc_ui_send_program_resume(void);
-   enum EMC_RESULT emc_ui_send_program_step(void);
-   enum EMC_RESULT emc_ui_send_abort(void);
-   enum EMC_RESULT emc_ui_send_axis_set_backlash(int axis, double backlash);
-   enum EMC_RESULT emc_ui_send_teleop_enable(int enable);
-   enum EMC_RESULT emc_ui_get_args(int argc, char *argv[]);
+   DLL_EXPORT enum EMC_RESULT emc_ui_wait_command_done(void *hd, double timeout);
+   DLL_EXPORT enum EMC_RESULT emc_ui_wait_io_done(void *hd, double timeout);
+   DLL_EXPORT enum EMC_RESULT emc_ui_estop(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_estop_reset(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_machine_on(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_machine_off(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_manual_mode(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_auto_mode(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_mdi_mode(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_mist_on(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_mist_off(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_flood_on(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_flood_off(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_lube_on(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_lube_off(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_spindle_forward(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_spindle_reverse(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_spindle_off(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_tool_table(void *hd, const char *file);
+   DLL_EXPORT enum EMC_RESULT emc_ui_tool_offset(void *hd, int toolno, double zoffset, double diameter);
+   DLL_EXPORT enum EMC_RESULT emc_ui_override_limits(void *hd, int axis);
+   DLL_EXPORT enum EMC_RESULT emc_ui_mdi_cmd(void *hd, const char *mdi);
+   DLL_EXPORT enum EMC_RESULT emc_ui_home(void *hd, int axis);
+   DLL_EXPORT enum EMC_RESULT emc_ui_unhome(void *hd, int axis);
+   DLL_EXPORT enum EMC_RESULT emc_ui_jog_stop(void *hd, int axis);
+   DLL_EXPORT enum EMC_RESULT emc_ui_jog_incr(void *hd, int axis, double speed, double incr);
+   DLL_EXPORT enum EMC_RESULT emc_ui_jog_abs(void *hd, int axis, double speed, double pos);
+   DLL_EXPORT enum EMC_RESULT emc_ui_feed_override(void *hd, double override);
+   DLL_EXPORT enum EMC_RESULT emc_ui_plan_init(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_program_open(void *hd, const char *program);
+   DLL_EXPORT enum EMC_RESULT emc_ui_program_run(void *hd, int line);
+   DLL_EXPORT enum EMC_RESULT emc_ui_program_pause(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_program_resume(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_program_step(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_abort(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_axis_backlash(void *hd, int axis, double backlash);
+   DLL_EXPORT enum EMC_RESULT emc_ui_teleop_enable(void *hd, int enable);
+   DLL_EXPORT int emc_ui_get_ini_key_value(void *hd, const char *section, const char *key, char *value, int value_size);
+   DLL_EXPORT enum EMC_RESULT emc_ui_get_version(const char **ver);
+   DLL_EXPORT enum EMC_RESULT emc_ui_dout(void *hd, int output_num, int value, int sync);
+   DLL_EXPORT enum EMC_TASK_STATE emc_ui_get_task_state(void *hd);
+   DLL_EXPORT enum EMC_TASK_MODE emc_ui_get_task_mode(void *hd);
+   DLL_EXPORT enum EMC_DIN_STATE emc_ui_get_din_state(void *hd, int input_num);
+   DLL_EXPORT enum EMC_RESULT emc_ui_enable_din_abort(void *hd, int input_num);
+   DLL_EXPORT enum EMC_RESULT emc_ui_disable_din_abort(void *hd, int input_num);
 
 #ifdef __cplusplus
 }                               /* matches extern "C" at top */

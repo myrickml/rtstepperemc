@@ -18,10 +18,10 @@ bindir = @bindir@
 datarootdir=@datarootdir@
 infodir = @infodir@
 libdir = @libdir@
-docdir = $(datarootdir)/doc/$(PACKAGE)
+docdir = $(datarootdir)/doc/@PACKAGE_NAME@
 mandir = @mandir@
-emcdir = $(datarootdir)/$(PACKAGE)
-emcconfdir = /etc/$(PACKAGE)
+emcdir = $(datarootdir)/@PACKAGE_NAME@
+emcconfdir = /etc/@PACKAGE_NAME@
 emcrulesdir = /etc/udev/rules.d
 
 CC = @CC@
@@ -41,7 +41,7 @@ INSTALL_PROGRAM = $(INSTALL)
 INSTALL_SCRIPT = $(INSTALL)
 mkinstalldirs = $(INSTALL) -d
 host = @host@
-EPM_PACKAGE = rtstepperemc
+EPM_PACKAGE = @PACKAGE_NAME@
 
 platform = @platform@
 relnum = @relnum@
@@ -55,7 +55,7 @@ linux_build = @linux_build@
 BUNDLE = tkmini.app
 host_cpu = @host_cpu@
 
-INCLUDES = -Iinclude
+INCLUDES = -Iinclude -Itinypy
 
 CFLAGS += -std=gnu99
 
@@ -64,7 +64,7 @@ CFLAGS += -fvisibility=hidden
 CXXFLAGS += -fvisibility=hidden -fvisibility-inlines-hidden
 endif
 
-ifeq ($(linux_build),no)
+ifeq ($(mingw_build),yes)
 docdir = doc
 emcconfdir = etc
 endif
@@ -79,22 +79,32 @@ endif
 endif
 
 DEFS += -DLINELEN=255 \
--DEMC2_TASKNAME=\"milltask\" -DEMC2_DEFAULT_INIFILE=\"$(emcconfdir)/rtstepper.ini\"
+-DEMC2_TASKNAME=\"milltask\" -DEMC2_DEFAULT_INIFILE=\"$(emcconfdir)/rtstepper.ini\" \
+-DEMC2_DEFAULT_PROGRAM_PREFIX=\"$(emcconfdir)\" -DDLL_EXTENSION=\"$(DLL_EXTENSION)\"
 
 dist_doc_DATA = \
 COPYING ers.html dongle.jpg mini_linux.png mini_xp_full.png sig.png home_switch.png mini_osx_full.png bundle.png \
 zip_download.png extract.png wizard1.png wizard2.png wizard3.png unziped.png unpluged.png new_hardware.png \
 new_hardware2.png new_hardware3.png new_hardware4.png new_hardware6.png
 
+dist_noinst_BC_SCRIPTS = \
+tinypy/tokenize.py tinypy/encode.py tinypy/parse.py tinypy/py2bc.py
+
+dist_noinst_TINYPY_SCRIPTS = \
+tinypy/boot.py tinypy/build_bc.py $(dist_noinst_BC_SCRIPTS)
+
+dist_TINYPY_SCRIPTS = \
+tinypy/m3.py tinypy/m5.py tinypy/m4.py tinypy/m7.py tinypy/m8.py tinypy/m9.py tinypy/m190.py
+
 dist_noinst_SCRIPTS = \
-bootstrap configure.ac config.guess install-sh configure config.sub create-dmg template.applescript
+bootstrap configure.ac config.guess install-sh configure config.sub create-dmg template.applescript \
 
 dist_noinst_DATA = \
 Makefile.in aclocal.m4 rtstepper.list.in rt-stepper.inf
 
-dist_mini_SCRIPTS =
+dist_MINI_SCRIPTS =
 
-dist_noinst_mini_SCRIPTS = \
+dist_noinst_MINI_SCRIPTS = \
 mini/emc.tcl.in mini/mini.tcl.in
 
 dist_CONF_DATA = \
@@ -124,19 +134,44 @@ rs274ngc/rs274ngc_pre.cc rs274ngc/tool_parse.cc
 dist_TASK_SOURCE = \
 task/motctl.c task/motcmd.c \
 task/interpl.cc task/tp.c task/tc.c task/trivkins.c task/cubic.c \
-task/emccanon.cc task/ini.cc task/rtstepper.c task/rtstepper_log.c \
+task/emccanon.cc task/ini.c task/rtstepper.c task/rtstepper_log.c \
 task/iocmd.c task/ui.cc task/cmd.cc task/linklist.cc task/msg.c \
 task/_posemath.c task/posemath.cc task/tclext.cc
 
+_TMP = $(notdir $(dist_noinst_BC_SCRIPTS))
+BC_MODULES = $(_TMP:.py=)
+BC_TPC = $(dist_noinst_BC_SCRIPTS:.py=.tpc)
+
+dist_TINYPY_SOURCE_INC = \
+tinypy/tinypy.h
+
+dist_TINYPY_SOURCE = \
+tinypy/builtins.c tinypy/dict.c tinypy/gc.c tinypy/list.c tinypy/misc.c tinypy/ops.c tinypy/string.c tinypy/tp.c tinypy/vm.c
+
+dist_TINYPY_RTSTEPPER_SOURCE = \
+tinypy/rtstepper/init.c
+
 dist_RTTEST_SOURCE = task/rt-test.c
+dist_PYTEST_SOURCE = task/pytest.c
 
+TINYPY_OBJ = bc.o $(dist_TINYPY_SOURCE:.c=.o) $(dist_TINYPY_RTSTEPPER_SOURCE:.c=.o)
 RS274NGC_OBJ = $(addsuffix .o, $(basename $(dist_RS274NGC_SOURCE)))
-
-TASK_OBJ = $(addsuffix .o, $(basename $(dist_TASK_SOURCE))) $(RS274NGC_OBJ) 
+TASK_OBJ = $(addsuffix .o, $(basename $(dist_TASK_SOURCE))) $(RS274NGC_OBJ) $(TINYPY_OBJ)
 RTTEST_OBJ =  $(addsuffix .o, $(basename $(dist_RTTEST_SOURCE)))
+PYTEST_OBJ = $(dist_PYTEST_SOURCE:.c=.o) 
 
 # Default
-all: rtstepperemc.$(DLL_EXTENSION) rt-test$(EXEEXT)
+all: rtstepperemc.$(DLL_EXTENSION) rt-test$(EXEEXT) rt-pytest$(EXEEXT)
+
+# bc.c
+bc.c: $(BC_TPC)
+	rm -f bc.c
+	for i in $(BC_MODULES); do \
+	   python tinypy/build_bc.py $$i; \
+	done
+
+%.tpc: %.py
+	python tinypy/py2bc.py $< $*.tpc
 
 # Link program
 rtstepperemc.so: $(TASK_OBJ)
@@ -158,10 +193,13 @@ endif
 rt-test.exe: $(RTTEST_OBJ)
 	$(CC) -o $@ $(RTTEST_OBJ) -L. $(LDFLAGS) $(LIBS) -lusb-winusb
 
+rt-pytest$(EXEEXT): $(PYTEST_OBJ)
+	$(CC) -o $@ $(PYTEST_OBJ) -L. $(LDFLAGS) $(LIBS) -ldl -lpthread
+
 # Compile with pattern rules
-%.o: %.c $(dist_PROGRAM_SOURCE_INC)
+%.o: %.c $(dist_PROGRAM_SOURCE_INC) $(dist_TINYPY_SOURCE_INC)
 	$(CC) -c $< -o $@ $(CFLAGS) $(DEFS) $(INCLUDES) 
-%.o: %.cc $(dist_PROGRAM_SOURCE_INC)
+%.o: %.cc $(dist_PROGRAM_SOURCE_INC) $(dist_TINYPY_SOURCE_INC)
 	$(CXX) -c $< -o $@ $(CXXFLAGS) $(DEFS) $(INCLUDES) 
 
 #
@@ -172,7 +210,7 @@ install: all install_rtstepperemc.$(DLL_EXTENSION)
 # Install programs 
 install_rtstepperemc.so:
 	$(mkinstalldirs) $(DESTDIR)$(emcconfdir)
-	@for i in $(dist_CONF_DATA); do \
+	@for i in $(dist_CONF_DATA) $(dist_TINYPY_SCRIPTS); do \
 	   fn=`basename $$i`; \
 	   if [ -f $(DESTDIR)/$(emcconfdir)/$$fn ]; then \
 	      echo "-WARNING existing $(emcconfdir)/$$fn, NO update performed!" ; \
@@ -194,7 +232,7 @@ ifeq ($(linux_build),yes)
 endif
 ifeq ($(mini_build),yes)
 	$(mkinstalldirs) $(DESTDIR)$(emcdir)/mini
-	@for i in $(dist_mini_SCRIPTS); do \
+	@for i in $(dist_MINI_SCRIPTS); do \
 	   $(INSTALL_SCRIPT) $(srcdir)/$$i $(DESTDIR)$(emcdir)/mini; \
 	done
 	$(INSTALL_SCRIPT) $(srcdir)/mini/mini.tcl $(DESTDIR)$(emcdir)/mini
@@ -209,7 +247,7 @@ install_rtstepperemc.dll:
 #
 uninstall: uninstall_rtstepperemc.$(DLL_EXTENSION)
 
-# Uninstall program ?
+# Uninstall program
 uninstall_rtstepperemc.so:
 	rm -fr $(DESTDIR)$(emcconfdir)
 	rm -fr $(DESTDIR)$(emcdir)
@@ -229,16 +267,20 @@ dist:
 	install -d $(PACKAGE)-$(VERSION)/rs274ngc
 	install -d $(PACKAGE)-$(VERSION)/include
 	install -d $(PACKAGE)-$(VERSION)/mini
+	install -d $(PACKAGE)-$(VERSION)/tinypy/rtstepper
 	cp $(dist_noinst_SCRIPTS) $(dist_noinst_DATA) $(dist_doc_DATA) $(dist_DATA) $(PACKAGE)-$(VERSION)
-	cp $(dist_TASK_SOURCE) $(dist_RTTEST_SOURCE) $(PACKAGE)-$(VERSION)/task
+	cp $(dist_TASK_SOURCE) $(dist_RTTEST_SOURCE) $(dist_PYTEST_SOURCE) $(PACKAGE)-$(VERSION)/task
 	cp $(dist_RS274NGC_SOURCE) $(PACKAGE)-$(VERSION)/rs274ngc
-	cp $(dist_mini_SCRIPTS) $(dist_noinst_mini_SCRIPTS) $(PACKAGE)-$(VERSION)/mini
+	cp $(dist_MINI_SCRIPTS) $(dist_noinst_MINI_SCRIPTS) $(PACKAGE)-$(VERSION)/mini
 	cp $(dist_PROGRAM_SOURCE_INC) $(PACKAGE)-$(VERSION)/include
+	cp $(dist_TINYPY_SOURCE_INC) $(dist_TINYPY_SOURCE) $(dist_noinst_TINYPY_SCRIPTS) $(dist_TINYPY_SCRIPTS) $(PACKAGE)-$(VERSION)/tinypy
+	cp $(dist_TINYPY_RTSTEPPER_SOURCE) $(PACKAGE)-$(VERSION)/tinypy/rtstepper
 	tar czvf $(PACKAGE)-$(VERSION).tar.gz $(PACKAGE)-$(VERSION)
 	rm -r $(PACKAGE)-$(VERSION)
 
 clean:	
-	rm -f task/*.o task/*~ rs274ngc/*.o rs274ngc/*~ mini/*~ include/*~
+	rm -f task/*.o task/*~ rs274ngc/*.o tinypy/*.o tinypy/rtstepper/*.o \
+	rs274ngc/*~ mini/*~ include/*~ tinypy/*.tpc tinypy/*~ tinypy/rtstepper/*~
 
 rpm:
 	epm -m $(platform) -f rpm $(EPM_PACKAGE) rtstepper.list
@@ -260,7 +302,6 @@ dmg:
 	@for i in $(dist_doc_DATA); do \
 	   $(INSTALL_DATA) $(srcdir)/$$i $(BUNDLE)/Contents/Resources/$(docdir); \
 	done
-	$(INSTALL) rt-test $(BUNDLE)/Contents/MacOS
 	$(INSTALL_SCRIPT) $(srcdir)/mini/mini.tcl $(BUNDLE)/Contents/MacOS/tkmini.tcl
 	$(INSTALL_SCRIPT) $(srcdir)/mini/emc.tcl $(BUNDLE)/Contents/MacOS
 	$(INSTALL_PROGRAM) $(srcdir)/rt-test $(BUNDLE)/Contents/MacOS
@@ -341,8 +382,13 @@ zip:
 	$(INSTALL) $(mingw_path)/wusb-lsusb.exe $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
 	$(INSTALL) $(mingw_path)/libusb-winusb.dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
 	$(INSTALL) $(mingw_path)/libusb-winusb.a $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
-	$(INSTALL) $(mingw_path)/rt-test.exe $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
 	zip -r $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum).zip $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)
 	rm -fr $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)
 
-.PHONY: dist uninstall install all clean zip
+test:
+	./rt-pytest
+	./rt-pytest -v
+	./rt-pytest -i rtstepper.ini
+	./rt-pytest -i rtstepper.ini -m m5
+
+.PHONY: dist uninstall install all clean zip test

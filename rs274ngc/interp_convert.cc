@@ -2577,9 +2577,6 @@ int Interp::convert_m(block_pointer block,       //!< pointer to a block of RS27
 {
   int type;
   double timeout;               // timeout for M66
-  double *pars;                 /* short name for settings->parameters            */
-
-  pars = settings->parameters;
 
   /* The M62-65 commands are used for DIO */
   /* M62 sets a DIO synched with motion
@@ -2843,9 +2840,6 @@ int Interp::convert_m(block_pointer block,       //!< pointer to a block of RS27
   /* user-defined M codes */
   if (block->m_modes[10] != -1) {
     int index = block->m_modes[10];
-    if (USER_DEFINED_FUNCTION[index - 100] == 0) {
-      CHKS(1, NCE_UNKNOWN_M_CODE_USED);
-    }
     enqueue_M_USER_COMMAND(index,block->p_number,block->q_number);
   }
   return INTERP_OK;

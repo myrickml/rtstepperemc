@@ -44,6 +44,7 @@ $dll_version=2012-02-02
 %format all
 
 f 0755 root root $bindir/rt-test ${srcdir}/rt-test
+f 0755 root root $bindir/rt-test ${srcdir}/rt-pytest
 
 %system linux
 f 0644 root root $rulesdir/55-rt-stepper.rules ${srcdir}/55-rt-stepper.rules

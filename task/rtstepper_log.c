@@ -32,11 +32,12 @@
 #include <stdarg.h>
 #include <fcntl.h>
 #include <pthread.h>
-#include <time.h>
+#include <sys/time.h>
 #include "rtstepper.h"
 
 static FILE *logfd;
-static pthread_mutex_t syslog_mutex;
+static pthread_mutex_t syslog_mutex = PTHREAD_MUTEX_INITIALIZER;
+static struct timeval start_time;
 
 static char *month[12] = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
@@ -52,11 +53,13 @@ void rtstepper_close_log(void)
 
 void rtstepper_open_log(const char *ident, int logopt)
 {
+   struct tm *pt;
+   time_t t;
    char log_file[512], backup[512];
    struct stat sb;
 
    if (logfd)
-      rtstepper_close_log();
+      return;
 
    sprintf(log_file, "%s.log", ident);
 
@@ -69,15 +72,18 @@ void rtstepper_open_log(const char *ident, int logopt)
    }
 
    logfd = fopen(log_file, "a");
-   pthread_mutex_init(&syslog_mutex, NULL);
+
+   gettimeofday(&start_time, NULL);
+   t = time(NULL);
+   pt = localtime(&t);
+   rtstepper_syslog("started %s %s %d %d:%d:%d\n", log_file, month[pt->tm_mon], pt->tm_mday, pt->tm_hour, pt->tm_min, pt->tm_sec);
 }       /* rtstepper_open_log */
 
 void rtstepper_syslog(const char *fmt, ...)
 {
+   struct timeval now;
    va_list args;
-   struct tm *pt;
-   time_t t;
-   char tmp[512], msg[512];
+   char tmp[512];
    int n;
 
    if (!logfd)
@@ -90,10 +96,8 @@ void rtstepper_syslog(const char *fmt, ...)
    if ((n = vsnprintf(tmp, sizeof(tmp), fmt, args)) == -1)
       tmp[sizeof(tmp) - 1] = 0; /* output was truncated */
 
-   t = time(NULL);
-   pt = localtime(&t);
-   snprintf(msg, sizeof(msg), "%s %d %d:%d:%d %s", month[pt->tm_mon], pt->tm_mday, pt->tm_hour, pt->tm_min, pt->tm_sec, tmp);
-   fprintf(logfd, "%s", msg);
+   gettimeofday(&now, NULL);
+   fprintf(logfd, "%lu.%.3lus %s", now.tv_sec & 0xfff, (unsigned long int)now.tv_usec % 1000000, tmp);
    fflush(logfd);
 
    va_end(args);

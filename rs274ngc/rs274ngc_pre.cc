@@ -80,10 +80,10 @@ include an option for suppressing superfluous commands.
 #include <unistd.h>
 //#include <libintl.h>
 
-#include "ini.h"		// INIFILE
+#include "ini.h"     // INIFILE
 #include "rs274ngc.h"
 #include "rs274ngc_return.h"
-#include "interp_internal.h"	// interpreter private definitions
+#include "interp_internal.h"  // interpreter private definitions
 #include "interp_queue.h"
 #include "rs274ngc_interp.h"
 //#include "rs274ngc_errors.cc"
@@ -96,14 +96,16 @@ extern char * _rs274ngc_errors[];
 
 //#define LOG_FILE &_setup.log_file[0]
 
+static char RS274NGC_PARAMETER_FILE[LINELEN] = RS274NGC_PARAMETER_FILE_NAME_DEFAULT;
+
 Interp::Interp() 
     : log_file(0)
 {}
 
 Interp::~Interp() {
     if(log_file) {
-	fclose(log_file);
-	log_file = 0;
+   fclose(log_file);
+   log_file = 0;
     }
 }
 
@@ -131,9 +133,9 @@ void Interp::doLog(char *fmt, ...)
     tm = localtime(&tv.tv_sec);
 
     fprintf(log_file, "%04d%02d%02d-%02d:%02d:%02d.%03d ",
-	    tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
-	    tm->tm_hour, tm->tm_min, tm->tm_sec,
-	    (int)tv.tv_usec/1000);
+       tm->tm_year+1900, tm->tm_mon+1, tm->tm_mday,
+       tm->tm_hour, tm->tm_min, tm->tm_sec,
+       (int)tv.tv_usec/1000);
 
     vfprintf(log_file, fmt, ap);
     fflush(log_file);
@@ -242,9 +244,9 @@ int Interp::execute(const char *command)
       {
           status = read(0);  // reads from current file and calls parse
           if (status != INTERP_OK)
-	    {
+       {
                return status;
-	    }
+       }
           status = execute();  // special handling for mdi errors
           if (status != INTERP_OK) {
                reset();
@@ -326,13 +328,7 @@ written. Otherwise, the default parameter file name is used.
 
 int Interp::exit()
 {
-  char file_name[LINELEN];
-
-  GET_EXTERNAL_PARAMETER_FILE_NAME(file_name, (LINELEN - 1));
-  save_parameters(((file_name[0] ==
-                             0) ?
-                            RS274NGC_PARAMETER_FILE_NAME_DEFAULT :
-                            file_name), _setup.parameters);
+  save_parameters(RS274NGC_PARAMETER_FILE, _setup.parameters);
   reset();
 
   return INTERP_OK;
@@ -366,14 +362,10 @@ always calls SET_FEED_REFERENCE(CANON_XYZ).
 int Interp::init()
 {
   int k;                        // starting index in parameters of origin offsets
-  char filename[LINELEN];
   double *pars;                 // short name for _setup.parameters
-
-  char *iniFileName;
+  char inistring[LINELEN];
 
   INIT_CANON();
-
-  iniFileName = getenv("INI_FILE_NAME");
 
   // the default log file
   strcpy(&_setup.log_file[0], "emc_log");
@@ -386,52 +378,32 @@ int Interp::init()
   _setup.c_axis_wrapped = 0;
   _setup.random_toolchanger = 0;
 
-  // not clear -- but this is fn is called a second time without an INI.
-  if(NULL == iniFileName)
-  {
-      logDebug("INI_FILE_NAME not found\n");
-  }
-  else
-  {
-      IniFile inifile;
+  logDebug("iniFileName:%s:\n", iniFileName);
 
-      logDebug("iniFileName:%s:\n", iniFileName);
+  if (iniGetKeyValue("EMCIO", "TOOL_CHANGE_AT_G30", inistring, sizeof(inistring)) > 0)
+     _setup.tool_change_at_g30 = strtod(inistring, NULL);
+  if (iniGetKeyValue("EMCIO", "TOOL_CHANGE_QUILL_UP", inistring, sizeof(inistring)) > 0)
+     _setup.tool_change_quill_up = strtod(inistring, NULL);
+  if (iniGetKeyValue("EMCIO", "TOOL_CHANGE_WITH_SPINDLE_ON", inistring, sizeof(inistring)) > 0)
+     _setup.tool_change_with_spindle_on = strtod(inistring, NULL);
+  if (iniGetKeyValue("AXIS_3", "WRAPPED_ROTORY", inistring, sizeof(inistring)) > 0)
+     _setup.a_axis_wrapped = strtod(inistring, NULL);
+  if (iniGetKeyValue("AXIS_4", "WRAPPED_ROTORY", inistring, sizeof(inistring)) > 0)
+     _setup.b_axis_wrapped = strtod(inistring, NULL);
+  if (iniGetKeyValue("AXIS_5", "WRAPPED_ROTORY", inistring, sizeof(inistring)) > 0)
+     _setup.c_axis_wrapped = strtod(inistring, NULL);
+  if (iniGetKeyValue("EMCIO", "RANDOM_TOOLCHANGER", inistring, sizeof(inistring)) > 0)
+     _setup.random_toolchanger = strtod(inistring, NULL);
+  if (iniGetKeyValue("RS274NGC", "LOG_LEVEL", inistring, sizeof(inistring)) > 0)
+     _setup.loggingLevel = strtod(inistring, NULL);
 
-      if (inifile.Open(iniFileName) == false) {
-          logDebug("Unable to open inifile:%s:\n", iniFileName);
-      }
-      else
-      {
-          const char *inistring;
-
-          inifile.Find(&_setup.tool_change_at_g30, "TOOL_CHANGE_AT_G30", "EMCIO");
-          inifile.Find(&_setup.tool_change_quill_up, "TOOL_CHANGE_QUILL_UP", "EMCIO");
-          inifile.Find(&_setup.tool_change_with_spindle_on, "TOOL_CHANGE_WITH_SPINDLE_ON", "EMCIO");
-          inifile.Find(&_setup.a_axis_wrapped, "WRAPPED_ROTARY", "AXIS_3");
-          inifile.Find(&_setup.b_axis_wrapped, "WRAPPED_ROTARY", "AXIS_4");
-          inifile.Find(&_setup.c_axis_wrapped, "WRAPPED_ROTARY", "AXIS_5");
-          inifile.Find(&_setup.random_toolchanger, "RANDOM_TOOLCHANGER", "EMCIO");
-
-          if(NULL != (inistring = inifile.Find("LOG_LEVEL", "RS274NGC")))
-          {
-              _setup.loggingLevel = atol(inistring);
-          }
-
-          _setup.use_lazy_close = 1;
-	  _setup.wizard_root[0] = 0;
-	  _setup.program_prefix[0] = 0;
-
-          // close it
-          inifile.Close();
-      }
-  }
+  _setup.use_lazy_close = 1;
+  _setup.wizard_root[0] = 0;
+  _setup.program_prefix[0] = 0;
 
   _setup.length_units = GET_EXTERNAL_LENGTH_UNIT_TYPE();
   USE_LENGTH_UNITS(_setup.length_units);
-  GET_EXTERNAL_PARAMETER_FILE_NAME(filename, LINELEN);
-  if (filename[0] == 0)
-    strcpy(filename, RS274NGC_PARAMETER_FILE_NAME_DEFAULT);
-  CHP(restore_parameters(filename));
+  CHP(restore_parameters(RS274NGC_PARAMETER_FILE));
   pars = _setup.parameters;
   _setup.origin_index = (int) (pars[5220] + 0.0001);
   if(_setup.origin_index < 1 || _setup.origin_index > 9) {
@@ -778,12 +750,12 @@ int Interp::read(const char *command)  //!< may be NULL or a string to read
     CHKS((GET_EXTERNAL_QUEUE_EMPTY() == 0),
         NCE_QUEUE_IS_NOT_EMPTY_AFTER_INPUT);
     if (_setup.input_digital == ON) { // we are checking for a digital input
-	_setup.parameters[5399] =
-	    GET_EXTERNAL_DIGITAL_INPUT(_setup.input_index,
-				      (_setup.parameters[5399] != 0.0));
+   _setup.parameters[5399] =
+       GET_EXTERNAL_DIGITAL_INPUT(_setup.input_index,
+                  (_setup.parameters[5399] != 0.0));
     } else { // checking for analog input
-	_setup.parameters[5399] =
-	    GET_EXTERNAL_ANALOG_INPUT(_setup.input_index, _setup.parameters[5399]);
+   _setup.parameters[5399] =
+       GET_EXTERNAL_ANALOG_INPUT(_setup.input_index, _setup.parameters[5399]);
     }
     _setup.input_flag = OFF;
   }
@@ -1117,9 +1089,6 @@ the controller.
 
 int Interp::synch()
 {
-
-  char file_name[LINELEN];
-
   _setup.control_mode = GET_EXTERNAL_MOTION_CONTROL_MODE();
   _setup.AA_current = GET_EXTERNAL_POSITION_A();
   _setup.BB_current = GET_EXTERNAL_POSITION_B();
@@ -1146,12 +1115,7 @@ int Interp::synch()
   _setup.adaptive_feed = GET_EXTERNAL_ADAPTIVE_FEED_ENABLE();
   _setup.feed_hold = GET_EXTERNAL_FEED_HOLD_ENABLE();
 
-  GET_EXTERNAL_PARAMETER_FILE_NAME(file_name, (LINELEN - 1));
-  save_parameters(((file_name[0] ==
-                             0) ?
-                            RS274NGC_PARAMETER_FILE_NAME_DEFAULT :
-                            file_name), _setup.parameters);
-
+  save_parameters(RS274NGC_PARAMETER_FILE, _setup.parameters);
   load_tool_table();   /*  must set  _setup.tool_max first */
 
   return INTERP_OK;
@@ -1442,33 +1406,23 @@ VARIABLE_FILE = rs274ngc.var
 
 int Interp::ini_load(const char *filename)
 {
-    IniFile inifile;
-    const char *inistring, *hdir;
+   char inistring[LINELEN];
 
-    // open it
-    if (inifile.Open(filename) == false) {
-        BUG("Unable to open inifile:%s:\n", filename);
-	return -1;
-    }
+   logDebug("Opened inifile:%s:\n", filename);
 
-    logDebug("Opened inifile:%s:\n", filename);
+   if (iniGetKeyValue("RS274NGC", "PARAMETER_FILE", inistring, sizeof(inistring)) > 0)
+   {
+      // found it
+      snprintf(RS274NGC_PARAMETER_FILE, sizeof(RS274NGC_PARAMETER_FILE), "%s/.%s/%s", USER_HOME_DIR, PACKAGE_NAME, inistring);
+      BUG("using PARAMETER_FILE:%s:\n", RS274NGC_PARAMETER_FILE);
+   } 
+   else 
+   {
+      // not found, leave RS274NGC_PARAMETER_FILE alone
+      BUG("did not find PARAMETER_FILE\n");
+   }
 
-    if (NULL != (inistring = inifile.Find("PARAMETER_FILE", "RS274NGC"))) {
-	// found it
-        if ((hdir = getenv("HOME")) == NULL)
-           hdir = ""; /* no $HOME directory, default to top level */
-        snprintf(_parameter_file_name, LINELEN, "%s/.%s/%s", hdir, PACKAGE_NAME, inistring);
-//	strncpy(_parameter_file_name, inistring, LINELEN);
-        BUG("using PARAMETER_FILE:%s:\n", _parameter_file_name);
-    } else {
-	// not found, leave RS274NGC_PARAMETER_FILE alone
-        BUG("did not find PARAMETER_FILE\n");
-    }
-
-    // close it
-    inifile.Close();
-
-    return 0;
+   return 0;
 }
 
 int Interp::init_tool_parameters()

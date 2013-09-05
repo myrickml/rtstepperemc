@@ -113,27 +113,32 @@ static int jog_ok(int joint_num, double vel)
    if (joint_num < 0 || joint_num >= emcmotStatus.traj.axes)
    {
       BUG("Can't jog invalid joint number %d.\n", joint_num);
+      emcOperatorMessage(0, EMC_I18N("Can't jog invalid joint number %d."), joint_num);
       return 0;
    }
    if (vel > 0.0 && GET_JOINT_PHL_FLAG(joint))
    {
       BUG("Can't jog joint %d further past max hard limit.\n", joint_num);
+      emcOperatorMessage(0, EMC_I18N("Can't jog joint %d further past max hard limit."), joint_num);
       return 0;
    }
    if (vel < 0.0 && GET_JOINT_NHL_FLAG(joint))
    {
       BUG("Can't jog joint %d further past min hard limit.\n", joint_num);
+      emcOperatorMessage(0, EMC_I18N("Can't jog joint %d further past min hard limit."), joint_num);
       return 0;
    }
    emcmot_refresh_jog_limits(joint);
    if (vel > 0.0 && (joint->pos_cmd > joint->max_jog_limit))
    {
       BUG("Can't jog joint %d further past max soft limit.\n", joint_num);
+      emcOperatorMessage(0, EMC_I18N("Can't jog joint %d further past max soft limit."), joint_num);
       return 0;
    }
    if (vel < 0.0 && (joint->pos_cmd < joint->min_jog_limit))
    {
       BUG("Can't jog joint %d further past min soft limit.\n", joint_num);
+      emcOperatorMessage(0, EMC_I18N("Can't jog joint %d further past min soft limit."), joint_num);
       return 0;
    }
    /* okay to jog */
@@ -199,10 +204,12 @@ static int inRange(EmcPose pos, int id, char *move_type)
          if (id > 0)
          {
             BUG("%s move on line %d would exceed joint %d's positive limit\n", move_type, id, joint_num);
+            emcOperatorMessage(0, EMC_I18N("%s move on line %d would exceed joint %d's positive limit"),  move_type, id, joint_num);
          }
          else
          {
             BUG("%s move in MDI would exceed joint %d's positive limit\n", move_type, joint_num);
+            emcOperatorMessage(0, EMC_I18N("%s move in MDI would exceed joint %d's positive limit"), move_type, joint_num);
          }
       }
 
@@ -212,10 +219,12 @@ static int inRange(EmcPose pos, int id, char *move_type)
          if (id > 0)
          {
             BUG("%s move on line %d would exceed joint %d's negative limit\n", move_type, id, joint_num);
+            emcOperatorMessage(0, EMC_I18N("%s move on line %d would exceed joint %d's negative limit"), move_type, id, joint_num);
          }
          else
          {
             BUG("%s move in MDI would exceed joint %d's negative limit\n", move_type, joint_num);
+            emcOperatorMessage(0, EMC_I18N("%s move in MDI would exceed joint %d's negative limit"), move_type, joint_num);
          }
       }
    }
@@ -325,6 +334,9 @@ static int is_feed_type(int motion_type)
    }
 }
 
+/*********************************************************************************
+ * emcmotCommandHandler() - process commands from the control_thread()
+ */
 void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
 {
    emcmot_joint_t *joint;
@@ -478,7 +490,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
             if (!emcmotCheckAllHomed())
             {
                BUG("all joints must be homed before going into coordinated mode\n");
-               emcOperatorError(0, EMC_I18N("all joints must be homed before going into coordinated mode"));
+               emcOperatorMessage(0, EMC_I18N("all joints must be homed before going into coordinated mode"));
                emcmotDebug.coordinating = 0;
                break;
             }
@@ -647,7 +659,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          {
             /* don't jog if feedhold is on or if feed override is zero */
             BUG("Can't jog when FEEDHOLD is on\n");
-            emcOperatorError(0, EMC_I18N("Can't jog when FEEDHOLD is on"));
+            emcOperatorMessage(0, EMC_I18N("Can't jog when FEEDHOLD is on"));
             break;
          }
          /* don't jog further onto limits */
@@ -691,18 +703,21 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          if (GET_MOTION_COORD_FLAG())
          {
             BUG("Can't jog joint in coordinated mode.\n");
+            emcOperatorMessage(0, EMC_I18N("Can't jog joint in coordinated mode."));
             SET_JOINT_ERROR_FLAG(joint, 1);
             break;
          }
          if (!GET_MOTION_ENABLE_FLAG())
          {
             BUG("Can't jog joint when not enabled.\n");
+            emcOperatorMessage(0, EMC_I18N("Can't jog joint when not enabled."));
             SET_JOINT_ERROR_FLAG(joint, 1);
             break;
          }
          if (emcmotStatus.homing_active)
          {
             BUG("Can't jog any joint while homing.\n");
+            emcOperatorMessage(0, EMC_I18N("Can't jog any joint while homing."));
             SET_JOINT_ERROR_FLAG(joint, 1);
             break;
          }
@@ -715,7 +730,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          {
             /* don't jog if feedhold is on or if feed override is zero */
             BUG("Can't jog when FEEDHOLD is on\n");
-            emcOperatorError(0, EMC_I18N("Can't jog when FEEDHOLD is on"));
+            emcOperatorMessage(0, EMC_I18N("Can't jog when FEEDHOLD is on"));
             break;
          }
          /* don't jog further onto limits */
@@ -729,12 +744,21 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
             tmp1 = joint->free_pos_cmd + emcmotCommand->offset;
          else
             tmp1 = joint->free_pos_cmd - emcmotCommand->offset;
+
          /* don't jog past limits */
          emcmot_refresh_jog_limits(joint);
          if (tmp1 > joint->max_jog_limit)
+         {
+            BUG("Can not jog post soft limit: %0.6f.\n", joint->max_jog_limit);
+            emcOperatorMessage(0, EMC_I18N("Can not jog past soft limit: %0.6f."), joint->max_jog_limit);
             break;
+         }
          if (tmp1 < joint->min_jog_limit)
+         {
+            BUG("Can not jog post soft limit: %0.6f.\n", joint->min_jog_limit);
+            emcOperatorMessage(0, EMC_I18N("Can not jog past soft limit: %0.6f."), joint->min_jog_limit);
             break;
+         }
 
          /* set target position */
          joint->free_pos_cmd = tmp1;
@@ -762,18 +786,21 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          if (GET_MOTION_COORD_FLAG())
          {
             BUG("Can't jog joint in coordinated mode.\n");
+            emcOperatorMessage(0, EMC_I18N("Can't jog joint in coordinated mode."));
             SET_JOINT_ERROR_FLAG(joint, 1);
             break;
          }
          if (!GET_MOTION_ENABLE_FLAG())
          {
             BUG("Can't jog joint when not enabled.\n");
+            emcOperatorMessage(0, EMC_I18N("Can't jog joint when not enabled."));
             SET_JOINT_ERROR_FLAG(joint, 1);
             break;
          }
          if (emcmotStatus.homing_active)
          {
             BUG("Can't jog any joints while homing.\n");
+            emcOperatorMessage(0, EMC_I18N("Can't jog any joints while homing."));
             SET_JOINT_ERROR_FLAG(joint, 1);
             break;
          }
@@ -786,7 +813,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          {
             /* don't jog if feedhold is on or if feed override is zero */
             BUG("Can't jog when FEEDHOLD is on\n");
-            emcOperatorError(0, EMC_I18N("Can't jog when FEEDHOLD is on"));
+            emcOperatorMessage(0, EMC_I18N("Can't jog when FEEDHOLD is on"));
             break;
          }
          /* don't jog further onto limits */
@@ -800,9 +827,17 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          /* don't jog past limits */
          emcmot_refresh_jog_limits(joint);
          if (joint->free_pos_cmd > joint->max_jog_limit)
+         {
+            BUG("Can not jog post soft limit: %0.6f.\n", joint->max_jog_limit);
+            emcOperatorMessage(0, EMC_I18N("Can not jog past soft limit: %0.6f."), joint->max_jog_limit);
             joint->free_pos_cmd = joint->max_jog_limit;
+         }
          if (joint->free_pos_cmd < joint->min_jog_limit)
+         {
+            BUG("Can not jog post soft limit: %0.6f.\n", joint->min_jog_limit);
+            emcOperatorMessage(0, EMC_I18N("Can not jog past soft limit: %0.6f."), joint->min_jog_limit);
             joint->free_pos_cmd = joint->min_jog_limit;
+         }
 
          /* set velocity of jog */
          joint->free_vel_lim = fabs(emcmotCommand->vel);
@@ -833,6 +868,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          if (!GET_MOTION_COORD_FLAG() || !GET_MOTION_ENABLE_FLAG())
          {
             BUG("need to be enabled, in coord mode for linear move\n");
+            emcOperatorMessage(0, EMC_I18N("need to be enabled, in coord mode for linear move"));
             emcmotStatus.commandStatus = EMCMOT_COMMAND_INVALID_COMMAND;
             SET_MOTION_ERROR_FLAG(1);
             break;
@@ -847,7 +883,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          else if (!limits_ok())
          {
             BUG("can't do linear move with limits exceeded\n");
-            emcOperatorError(0, EMC_I18N("can't do linear move with limits exceeded"));
+            emcOperatorMessage(0, EMC_I18N("can't do linear move with limits exceeded"));
             emcmotStatus.commandStatus = EMCMOT_COMMAND_INVALID_PARAMS;
             tpAbort(&emcmotDebug.queue);
             SET_MOTION_ERROR_FLAG(1);
@@ -868,6 +904,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
                              emcmotCommand->vel, emcmotCommand->ini_maxvel, emcmotCommand->acc, emcmotStatus.enables_new, issue_atspeed) == -1)
          {
             BUG("can't add linear move\n");
+            emcOperatorMessage(0, EMC_I18N("can't add linear move"));
             emcmotStatus.commandStatus = EMCMOT_COMMAND_BAD_EXEC;
             tpAbort(&emcmotDebug.queue);
             SET_MOTION_ERROR_FLAG(1);
@@ -889,6 +926,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          if (!GET_MOTION_COORD_FLAG() || !GET_MOTION_ENABLE_FLAG())
          {
             BUG("need to be enabled, in coord mode for circular move\n");
+            emcOperatorMessage(0, EMC_I18N("need to be enabled, in coord mode for circular move"));
             emcmotStatus.commandStatus = EMCMOT_COMMAND_INVALID_COMMAND;
             SET_MOTION_ERROR_FLAG(1);
             break;
@@ -903,7 +941,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          else if (!limits_ok())
          {
             BUG("can't do circular move with limits exceeded\n");
-            emcOperatorError(0, EMC_I18N("can't do circular move with limits exceeded"));
+            emcOperatorMessage(0, EMC_I18N("can't do circular move with limits exceeded"));
             emcmotStatus.commandStatus = EMCMOT_COMMAND_INVALID_PARAMS;
             tpAbort(&emcmotDebug.queue);
             SET_MOTION_ERROR_FLAG(1);
@@ -921,6 +959,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
                          emcmotCommand->acc, emcmotStatus.enables_new, issue_atspeed) == -1)
          {
             BUG("can't add circular move\n");
+            emcOperatorMessage(0, EMC_I18N("can't add circular move"));
             emcmotStatus.commandStatus = EMCMOT_COMMAND_BAD_EXEC;
             tpAbort(&emcmotDebug.queue);
             SET_MOTION_ERROR_FLAG(1);
@@ -970,6 +1009,28 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
       case EMCMOT_SET_DIRECTION_POLARITY:
          emcmot_config_change();
          ps->dongle.direction_active_high[joint_num] = emcmotCommand->polarity;
+         break;
+      case EMCMOT_ENABLE_DIN_ABORT:
+         emcmot_config_change();
+         if (emcmotCommand->input_num == 0)
+            ps->dongle.input0_abort_enabled = 1;
+         else if (emcmotCommand->input_num == 1)
+            ps->dongle.input1_abort_enabled = 1;
+         else if (emcmotCommand->input_num == 2)
+            ps->dongle.input2_abort_enabled = 1;
+         else
+            BUG("invalid input number=%d\n", emcmotCommand->input_num);
+         break;
+      case EMCMOT_DISABLE_DIN_ABORT:
+         emcmot_config_change();
+         if (emcmotCommand->input_num == 0)
+            ps->dongle.input0_abort_enabled = 0;
+         else if (emcmotCommand->input_num == 1)
+            ps->dongle.input1_abort_enabled = 0;
+         else if (emcmotCommand->input_num == 2)
+            ps->dongle.input2_abort_enabled = 0;
+         else
+            BUG("invalid input number=%d\n", emcmotCommand->input_num);
          break;
 
       case EMCMOT_SET_JOINT_VEL_LIMIT:
@@ -1024,6 +1085,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          else
          {
             BUG("MOTION: can't STEP while already executing\n");
+            emcOperatorMessage(0, EMC_I18N("MOTION: can't STEP while already executing"));
          }
          break;
 
@@ -1185,6 +1247,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          if ((emcmotStatus.motion_state != EMCMOT_MOTION_FREE) && (emcmotStatus.motion_state != EMCMOT_MOTION_DISABLED))
          {
             BUG("must be in joint mode or disabled to unhome\n");
+            emcOperatorMessage(0, EMC_I18N("must be in joint mode or disabled to unhome"));
             return;
          }
 
@@ -1201,11 +1264,13 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
                   if (GET_JOINT_HOMING_FLAG(joint))
                   {
                      BUG("Cannot unhome while homing, joint %d\n", n);
+                     emcOperatorMessage(0, EMC_I18N("Cannot unhome while homing, joint %d"), n);
                      return;
                   }
                   if (!GET_JOINT_INPOS_FLAG(joint))
                   {
                      BUG("Cannot unhome while moving, joint %d\n", n);
+                     emcOperatorMessage(0, EMC_I18N("Cannot unhome while moving, joint %d"), n);
                      return;
                   }
                }
@@ -1232,11 +1297,13 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
                if (GET_JOINT_HOMING_FLAG(joint))
                {
                   BUG("Cannot unhome while homing, joint %d\n", joint_num);
+                  emcOperatorMessage(0, EMC_I18N("Cannot unhome while homing, joint %d"), joint_num);
                   return;
                }
                if (!GET_JOINT_INPOS_FLAG(joint))
                {
                   BUG("Cannot unhome while moving, joint %d\n", joint_num);
+                  emcOperatorMessage(0, EMC_I18N("Cannot unhome while moving, joint %d"), joint_num);
                   return;
                }
                SET_JOINT_HOMED_FLAG(joint, 0);
@@ -1244,12 +1311,14 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
             else
             {
                BUG("Cannot unhome inactive joint %d\n", joint_num);
+               emcOperatorMessage(0, EMC_I18N("Cannot unhome inactive joint %d"), joint_num);
             }
          }
          else
          {
             /* invalid joint number specified */
-            BUG("Cannot unhome invalid joint %d (max %d)\n", joint_num, (emcmotStatus.traj.axes - 1));
+            BUG("Cannot unhome invalid joint %d (max %d)\n", joint_num, emcmotStatus.traj.axes - 1);
+            emcOperatorMessage(0, EMC_I18N("Cannot unhome invalid joint %d (max %d)"), joint_num, emcmotStatus.traj.axes - 1);
             return;
          }
 
@@ -1422,7 +1491,7 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          emcmot_config_change();
          break;
 
-         /* needed for synchronous I/O */
+#if 0
       case EMCMOT_SET_AOUT:
          if (emcmotCommand->now)
          {      //we set it right away
@@ -1433,16 +1502,13 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
             tpSetAout(&emcmotDebug.queue, emcmotCommand->out, emcmotCommand->start, emcmotCommand->end);
          }
          break;
+#endif
 
       case EMCMOT_SET_DOUT:
-         if (emcmotCommand->now)
-         {      //we set it right away
-            emcmotDioWrite(emcmotCommand->out, emcmotCommand->start);
-         }
-         else
-         {      // we put it on the TP queue, warning: only room for one in there, any new ones will overwrite
-            tpSetDout(&emcmotDebug.queue, emcmotCommand->out, emcmotCommand->start, emcmotCommand->end);
-         }
+         emcmotStatus.dout.output_num = emcmotCommand->output_num;
+         emcmotStatus.dout.value = emcmotCommand->value;
+         emcmotStatus.dout.sync = emcmotCommand->sync;
+         emcmotStatus.dout.active = 1;
          break;
 
       case EMCMOT_SET_SPINDLE_VEL:
@@ -1455,29 +1521,36 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
          emcmotStatus.spindle.css_factor = emcmotCommand->ini_maxvel;
          emcmotStatus.spindle.xoffset = emcmotCommand->acc;
          if (emcmotCommand->vel >= 0)
+         {
             emcmotStatus.spindle.direction = 1;
+         }
          else
+         {
             emcmotStatus.spindle.direction = -1;
+         }
          emcmotStatus.spindle.brake = 0;        //disengage brake
          emcmotStatus.atspeed_next_feed = 1;
          break;
 
       case EMCMOT_SPINDLE_OFF:
          emcmotStatus.spindle.speed = 0;
-         emcmotStatus.spindle.direction = 0;
+         emcmotStatus.spindle.direction = 0; 
          emcmotStatus.spindle.brake = 1;        // engage brake
+         break;
+
+      case EMCMOT_SYSTEM_CMD:
          break;
 
       case EMCMOT_SPINDLE_INCREASE:
          if (emcmotStatus.spindle.speed > 0)
-            emcmotStatus.spindle.speed += 100;  //FIXME - make the step a HAL parameter
+            emcmotStatus.spindle.speed += 100;
          else if (emcmotStatus.spindle.speed < 0)
             emcmotStatus.spindle.speed -= 100;
          break;
 
       case EMCMOT_SPINDLE_DECREASE:
          if (emcmotStatus.spindle.speed > 100)
-            emcmotStatus.spindle.speed -= 100;  //FIXME - make the step a HAL parameter
+            emcmotStatus.spindle.speed -= 100;
          else if (emcmotStatus.spindle.speed < -100)
             emcmotStatus.spindle.speed += 100;
          break;
@@ -1534,10 +1607,12 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
 
       default:
          BUG("unrecognized command %d\n", emcmotCommand->command);
+         emcOperatorMessage(0, EMC_I18N("unrecognized command %d"), emcmotCommand->command);
          emcmotStatus.commandStatus = EMCMOT_COMMAND_UNKNOWN_COMMAND;
          break;
 
       } /* end of: command switch */
+
       if (emcmotStatus.commandStatus != EMCMOT_COMMAND_OK)
       {
          BUG("ERROR: %d\n", emcmotStatus.commandStatus);
@@ -1550,4 +1625,4 @@ void emcmotCommandHandler(emcmot_command_t * emcmotCommand)
    }
 
    return;
-}
+} /* emcmotcommandHandler() */
