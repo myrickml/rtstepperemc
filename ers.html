@@ -25,9 +25,10 @@
 <li><a href="#configuration">6 Configuration File</a>
 <ul>
 <li><a href="#emc_section">6.1 EMC section</a>
-<li><a href="#traj_section">6.2 TRAJ section</a>
-<li><a href="#axis_section">6.3 AXIS section</a>
-<li><a href="#task_section">6.4 TASK section</a>
+<li><a href="#display_section">6.2 DISPLAY section</a>
+<li><a href="#traj_section">6.3 TRAJ section</a>
+<li><a href="#axis_section">6.4 AXIS section</a>
+<li><a href="#task_section">6.5 TASK section</a>
 </ul>
 <li><a href="#screens">7 Screens</a>
 <li><a href="#error">8 Error logging</a>
@@ -44,9 +45,12 @@
 <li><a href="#test">13 Testing</a>
 <li><a href="#tuning">14 Tuning</a>
 <li><a href="#switches">15 Limit Switches</a>
-<li><a href="#cam">16 CNC/CAD/CAM Support</a>
-<li><a href="#lib">17 Third-party Support</a>
-<li><a href="#spec">18 Specifications</a>
+<li><a href="#python">16 Python Scripts</a>
+<li><a href="#homing">17 Homing</a>
+<li><a href="#db25">18 DB25 Connector</a>
+<li><a href="#cam">19 CNC/CAD/CAM Support</a>
+<li><a href="#lib">20 Third-party Support</a>
+<li><a href="#spec">21 Specifications</a>
 </ul>
 
 <H2><a name="purpose"></a>1 Purpose</H2>
@@ -63,12 +67,13 @@ Most CNC controllers are designed to be driven with a PC parallel port. Unfortun
 The original <i>rt-stepper</i> software was a small terminal program that ran a small subset of CNC gcodes.
 This software was open source similar to the EMC2 open source project at <a href="http://www.linuxcnc.org">www.linuxcnc.org</a>. Both projects are separate PC applications that interpret gcode and drive CNC controllers. Instead of re-inventing another gcode interpreter the <i>rt-stepper</i> software is now based on the EMC2 software from <a href="http://www.linuxcnc.org">www.linuxcnc.org</a>. This provides a number of improvements over the original <i>rt-stepper</i> software - 4-axis support, complete gcode interpreter, trajectory planner, GUI front-end and Backploting. 
 <p>
-Note through out rest of this document the term "EMC2" and "EMC2 software" refers to software from the EMC2 project at <a href="http://www.linuxcnc.org">www.linuxcnc.org</a> that is now used in the <i>rt-stepper</i> software project. Both projects have separate code bases and create separate executables or binaries.
+Note through out the rest of this document the term "EMC2" and "EMC2 software" refers to software from the EMC2 project at <a href="http://www.linuxcnc.org">www.linuxcnc.org</a> that is now used in the <i>rt-stepper</i> software project. Both projects have separate code bases and create separate executables or binaries.
 <p>
 Since the <i>rt-stepper</i> dongle provides the real time step pulse generator this version of EMC2 has been re-factored. The EMC2 real time component has been removed. There are no kernel modules or real time kernel patch dependencies. This allows EMC2 (rtstepperemc) to run on Linux, Mac or Windows. 
 <p> 
-For those familiar with EMC2 some functionality was dropped. USB devices are different from parallel port devices. Basically the <i>rt-stepper</i> dongle must be treated as a buffered device in order take advantage of USB bus speed. You cannot control the device one-byte-at-time like a parallel port. This means no continuous joging, homing or probing are supported because it would be too slow. Only incremental joging is supported.  
-For the time being HAL has been removed. All configuration options are done via a *.ini file. The rcslib dependency has been removed.
+For those familiar with EMC2 some functionality was dropped. USB devices are different from parallel port devices. Basically the <i>rt-stepper</i> dongle must be treated as a buffered device in order take advantage of USB bus speed. You cannot control the device one-byte-at-time like a parallel port and expect guaranteed speed. This means a different approach must be used for USB. Step buffers must be created with known distances and trajectories before being sent over-the-wire. EMC2 code for continuous jogging, homing or probing must be re-factored or dropped. As a result only incremental jogging is supported and homing is now done via python scripts.  
+<p>
+HAL has been removed. All configuration options are done via a *.ini file. The rcslib library dependency has been removed.
 <p>
 The <i>rt-stepper</i> software is an open source project available at <a href="http://ecklersoft.com">www.ecklersoft.com</a>. 
 
@@ -101,14 +106,21 @@ The <i>rt-stepper</i> software will be open source, but the dongle will be sold 
 <p>
 GNU software tools will be used to build the source code. This includes an ANSI C compiler and POSIX compliant environment.
 <p>
-The tar ball will have built-in binary package support when used with <a href="http://www.epmhome.org">EPM</a>.
+The tar ball will have built-in binary package support.
 <p>
 Device permissions and user policies should be settable independently by administrators and distributions.
 <p>
 The dongle will have IO support for 8-bit output and 3-bit input. Both output and input are supported by the <i>rt-stepper</i> software.
 <p>
-The dongle 8-bit output will be reserved for 4 axis support. Initially no other spindle/tool control will be supported.
+The dongle 8-bit output will be configurable for axis support or general digital output.
 <p>
+Spindle and coolant mcodes will be implemented via python scripts.
+<p>
+All user-defined mcodes will be implemented via python scripts.
+<p>
+Homing will be performed with a user-defined mcode.
+<p>
+
 <H3><a name="license"></a>2.3 License</H3>
 The <i>rt-stepper</i> software that runs on the PC is covered by the <a href="http://www.gnu.org/licenses/gpl-2.0.txt">GNU GPL 2.0 license</a>.
 <p>
@@ -140,7 +152,10 @@ Both manual and auto CNC operations are supported by the software.
 The <i>rt-stepper</i> software supports the same gcode interpreter as EMC2. 
 See the "Gcode Overview" section at  <a href="http://www.linuxcnc.org">www.linuxcnc.org</a> for 
 program syntax, parameters, expressions, binary operators, functions and looping constructs.
-Keep in mind that program codes that deal with Tool Change, Spindle, Coolant and Homing are currently ignored.
+<p>
+Mcodes are handled differently the <i>rt-stepper</i> software. Most mcodes are now implemented with python scripts.  
+This means spindle, coolant and homing are now executed via python scripts.
+Tool Change codes are currently ignored.
 <p>
 <b>Notes on some codes:</b>
 <p>
@@ -168,6 +183,13 @@ The ini file is a simple ASCII text file that must be customized for each unique
 <p>
 The ini file is divided into different sections and key/value pairs. Sections are defined by brackets "[ ]" and key/value pairs are defined by the "=" character. Comment lines start with the "#" character.
 <p>
+Different digital output configurations can be defined in the ini file. DB25 pins 2-9 can be assigned to different output signals.
+The following examples show how 8 digital outputs can be configured for different CNC applications.
+<center>
+<img src="output_pins.png">
+</center>
+<p>
+
 The rest of this section define some common configuration options and their default values. Generally only these options need to be modified by the user.
 <p>
 <H3><a name="emc_section"></a>6.1 EMC section</H3>
@@ -177,7 +199,14 @@ MACHINE = TkMini (rtstepper.ini)
 </pre>
 Sets the title in the UI application. Useful for identifying what ini file is loaded.
 
-<H3><a name="traj_section"></a>6.2 TRAJ section</H3>
+<H3><a name="display_section"></a>6.2 DISPLAY section</H3>
+<pre>
+[DISPLAY]
+PROGRAM_PREFIX = /etc/rtstepperemc
+</pre>
+Sets the default path to gcode and mcode files.  
+
+<H3><a name="traj_section"></a>6.3 TRAJ section</H3>
 <pre>
 [TRAJ]
 DEFAULT_VELOCITY =      0.2
@@ -191,7 +220,7 @@ In the above example this would be 0.2 inches/second or 12 inches/minute (12 = 0
 This sets the trajectory planner overall acceleration and velocity then each axis can be fine tuned individually in
 the AXIS section.
 
-<H3><a name="axis_section"></a>6.3 AXIS section</H3>
+<H3><a name="axis_section"></a>6.4 AXIS section</H3>
 <pre>
 [AXIX_n]
 MAX_VELOCITY = 0.15
@@ -232,25 +261,43 @@ STEP_ACTIVE_HIGH specifies the polarity of the step signal (0 = active_low, 1 = 
 DIRECTION_ACTIVE_HIGH specifies the polarity of the direction signal (0 = active_low, 1 = active_high).
 <p>
 The default values for step/direction pins will work for many commercial CNC controller boards. 
-Note, DB25 connector pins 2, 3, 4, 5, 6, 7, 8 and 9 are reserved for step/direction signals, 2 signals per axis, 4 axis total. 
+Note, the dongle supports 8 digital output signals on DB25 connector pins 2, 3, 4, 5, 6, 7, 8 and 9.
 Your CNC controller MUST be built to use these pins, most commercial boards are. 
 <p>
 
-<H3><a name="task_section"></a>6.6 TASK section</H3>
+<H3><a name="task_section"></a>6.5 TASK section</H3>
 <pre>
 [TASK]
 INPUT0_ABORT = 0
 INPUT1_ABORT = 0
 INPUT2_ABORT = 0
 </pre>
-The "INPUT0_ABORT" sets the INPUT0 abort option. INPUT0 signal is hard wired to the DB25 connector pin 10. This signal can be used for limit switches. 
+Use the "INPUTx_ABORT" option to automatically trigger a un-synchronized estop. 
+Any "INPUTx_ABORT" option can be used to enable a estop. 
+Generally the input signals are used for limit switches.
 See the <a href="#switches">Limit Switches</a> section for wiring details.
 <p>
-When "INPUT0_ABORT=0" the INPUT0 signal is ignored. This is the default.
+When "INPUTx_ABORT=0" the INPUTx signal is ignored. This is the default.
 <p>
-When "INPUT0_ABORT=1" an "active high" transition on the INPUT0 pin will cause a un-synchronized estop.
+When "INPUTx_ABORT=1" an "active high" transition on the INPUTx pin will cause a un-synchronized estop.
 <p>
-INPUT1 and INPUT2 function the same as INPUT0. INPUT1 signal is hard wired to DB25 connector pin 11. INPUT2 signal is hard wired to DB25 connector pin 12.
+<pre>
+OUTPUT0_PIN = 0
+OUTPUT1_PIN = 0
+OUTPUT2_PIN = 0
+OUTPUT3_PIN = 0
+OUTPUT4_PIN = 0
+OUTPUT5_PIN = 0
+OUTPUT6_PIN = 0
+OUTPUT7_PIN = 0
+</pre>
+Use the "OUTPUTx_PIN" option to enable a general digital output signal. 
+The signal can be used for turning spindle or coolant on/off. 
+Each "OUTPUTx_PIN" specifies a DB25 pin number.
+<b>IMPORT!!</b> The pin number <b>MUST</b> be an unused axis step/direction pin.
+This means the same pin number can <b>NOT</b> be used in [AXIS_n] section.
+<p>
+When "OUTPUTx_PIN" = 0 the OUTPUTx signal is unused. This is the default.
 
 <H2><a name="screens"></a>7 Screens</H2>
 <center>
@@ -303,8 +350,10 @@ All though not a complete list the following OSs have be tested.
 <ul>
 <li> Fedora 13
 <li> Ubuntu 10.04
+<li> Ubuntu 12.04
 <li> MacBook Intel OSX 10.6.4
 <li> Windows XP
+<li> Windows 7
 </ul>
 
 <H2><a name="build"></a>11 Software Installation</H2>
@@ -437,7 +486,7 @@ For Mac OSX use the following instructions to install <i>rt-stepper</i>. The ins
 <ol>
 <li> Download the latest <i>rt-stepper</i> dmg disk image from <a href="http://www.ecklersoft.com/download.shtml">www.ecklersoft.com/download</a>. Note the disk image software version number will be the same or higher.
 </li>
-<li> Double clicking on the dmg file will automatically mount and popup the following file folder screen. You can use the icons from the disk image or you can drag-and-drop them into a folder on your hard drive. In order to modify the rtstepper.ini file you must drag-and-drop all four icons into a folder.
+<li> Double clicking on the dmg file will automatically mount and popup the following file folder screen. You can use the icons from the disk image or you can drag-and-drop them into a folder on your hard drive. In order to modify the rtstepper.ini file you must drag-and-drop all four icons into a folder on your hard drive.
 <center>
 <IMG SRC="bundle.png">
 </center>
@@ -629,21 +678,86 @@ Depending on the CNC system limit switches are optional. If exceeding the XYZ ph
 The <i>rt-stepper</i> dongle supports three "active high" input signals called INPUT0, INPUT1 and INPUT2. 
 Although any of the three input signals can be used for limit switches, the following example uses INPUT0.  
 INPUT0 signal is hard wired to the DB25 connector pin 10. 
-Multiple switches are wired in series as normally closed switches connected to CNC ground.
+Multiple switches are wired in-series as normally closed switches connected to CNC ground. 
+
 <center>
-<img src="home_switch.png">
+<img src="input_pins.png">
 </center>
-INPUT0 has a internal pull up resistor so no external power or pull up resistor is required. 
-INPUT0 uses a Schmitt Trigger input buffer for noise immunity, but care should still be taken with the switch wiring. Do NOT route switch wires near power wires.
 <p>
-INPUT0 can be used to signal an un-synchronized estop of the current CNC controller move. This functionality can be enabled via the ini file.
-See the <a href="#input0">"input0_abort"</a> option in the Configuration File section. 
+This configuration frees up INPUT1-2 for other uses and provides simple in-series cable wiring. 
+Note, "active high" digital input signals means broken wires will be detected immediately.
 <p>
-Note the "input0_abort" option has a small amount of software overhead so the abort sequence in not immediate. 
-Some extra steps may be executed after a switch has been tripped. 
+INPUT0-2 have a internal pull up resistors so no external power or pull up resistor is required. 
+INPUT0-2 use a Schmitt Trigger input buffer for noise immunity, but care should still be taken with the switch wiring. Do NOT route switch wires near power wires.
+<p>
+INPUT0-2 can be used to signal an un-synchronized estop of the current CNC controller move. This functionality can be enabled via the ini file.
+See the <a href="#task_section">"INPUTx_ABORT"</a> option in the Configuration File section. 
+<p>
+Note the "input0-2_abort" option has a small amount of software overhead so the abort sequence in not immediate. 
+Depending on how fast your PC is, some extra steps may be executed after a switch has been tripped. 
 The number of extra steps will be feed rate dependent. Switches should be chosen that can handle any extra steps without being damaged.
 
-<H2><a name="cam"></a>16 CNC/CAD/CAM Support</H2>
+<H2><a name="python"></a>16 Python Scripts</H2>
+Starting with rtstepperemc release 2.0 most mcodes are now supported via python scripts. 
+The python interpreter comes from the tinypy project at <a href="http://www.tinypy.org">www.tinypy.org</a> and is built into the rtstepperemc library. 
+Tinypy is a minimalist implementation of python. Python is a simple programming language that allow users to make their own custom changes without having to recompile the software.
+<p>
+What can you do with python a script? Scripts can perform the same functions as the GUI (tkmini) provides in Manual mode. This includes jogging, spindle on/off and coolant on/off.
+A good python script example that exercises most functionality is the homing script m190.py. 
+<p>
+Python scripts that execute spindle and coolant mcodes are included with the rtstepperemc software. Users can specify in the python script which digital output signal will be used. 
+Here is the python script file for turning the spindle on.
+<pre>
+#
+# m3.py - m3 mcode script turns spindle on clockwise.
+# 
+# inputs:
+#  path = ARGV[0]   # this python file name
+#  rpm  = ARGV[1]   # S parameter (spindle speed)
+#
+# returns:
+#  emc.h result code
+#
+# example:
+#  m3 s250.0
+#
+import rtstepper
+
+def main():
+    return rtstepper.dout(rtstepper.OUTPUT6, True)
+
+return main()
+</pre>
+<p>
+This script will set the digital output bit OUTPUT6 true. The DB25 pin assignment for OUTPUT6 would be defined in the ini file. 
+See the <a href="#task_section">"OUTPUTx_PIN"</a> option in the [TASK] section.
+A similar python script file (m5.py) would turn the spindle off.
+
+<H2><a name="homing"></a>17 Homing</H2>
+
+Homing is a process that moves an axis to a known position. Usually this is done with limit switches or in some cases separate homing switches. 
+Homing is especially useful when your CNC system has no dials on each axis. However, different machines have different requirements and homing can be quite complicated.
+<p>
+The rtstepperemc software supports homing with user-defined mcodes. User-defined mcodes are M100-199 and all user-defined mcodes are implemented via python scripts. 
+Included with the rtstepperemc software is an example python script file that implements the user-defined mcode M190 (m190.py).
+This is simple script file will home a specified axis. The user will need to customize the script for their CNC application.
+M190 can be executed as a MDI command or from a gcode file.
+
+<pre>
+M190 P0 Q0 (use INPUT0 for estop, home x-axis)
+M190 P0 Q1 (use INPUT0 for estop, home y-axis)
+M190 P0 Q2 (use INPUT0 for estop, home z-axis)
+</pre>
+The script was tested on a Sherline CNC system and proved to be very accurate using an optical switch. 
+Note, when running the script from a gcode file the M190 mcode cannot be executed inline because the estop will cancel the interp_list.
+
+<H2><a name="db25"></a>18 DB25 Connector</H2>
+This figure shows the <i>rt-stepper</i> dongle DB25 connector pin out.
+<center>
+<img src="db25.png">
+</center>
+
+<H2><a name="cam"></a>19 CNC/CAD/CAM Support</H2>
 All though not a complete list the following publicly available CAD/CAM packages and CNC controllers have be tested.
 <p>
 CAD/CAM support
@@ -660,7 +774,18 @@ CNC controller support
 Used with Sherline 5000 Mill plus 10,000RPM pulley to build dongle PCBs.
 </ul>
 
-<H2><a name="spec"></a>18 Specifications</H2>
+<H2><a name="lib"></a>20 Third-party Support</H2>
+All the motion control software is in the rtstepperemc shared library. The current GUI is written in TCL/TK and makes calls to the library through a "C" API. 
+
+<center>
+<img src="stack.png">
+</center>
+
+One can replace the GUI in the software stack with a third-party or custom application.
+In the source code download there a simple "C" code example (pytest.c) that shows how to load the shared library
+and call the APIs. Pytest is a command line program that can be used to execute MDI commands and gcode files.
+
+<H2><a name="spec"></a>21 Specifications</H2>
 Step resolution: 46,875 hz<br> 
 Standards: USB V1.1, USB V2.0 Compliant<br>
 USB Speed: Full Speed (12 Mb/s)<br>
@@ -673,9 +798,9 @@ Weight: 2.3 oz.
 <hr>
 <font size=2>
 <center>
-&#169 2009-2012 Eckler Software<br>
+&#169 2009-2013 Eckler Software<br>
 <IMG SRC="sig.png"><br>
-Last updated February 5, 2013
+Last updated September 10, 2013
 </center>
 </font>
 </font>

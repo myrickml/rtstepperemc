@@ -35,10 +35,10 @@
 #include <unistd.h>
 #include <errno.h>
 #include <sys/time.h>
-#include <dlfcn.h>
 #if (defined(__WIN32__) || defined(_WINDOWS))
 #include <usb-winusb.h>
 #else
+#include <dlfcn.h>
 #include <usb.h>
 #endif
 
@@ -93,6 +93,33 @@ static emc_ui_wait_command_done_t _emc_ui_wait_command_done;
 
 static int verbose;
 
+static void *_dlopen(const char *file)
+{
+#if (defined(__WIN32__) || defined(_WINDOWS))
+   return (void *)LoadLibrary(file);
+#else
+   return dlopen(file, RTLD_LAZY);
+#endif
+}
+
+static void *_dlsym(void *handle, const char *symbol)
+{
+#if (defined(__WIN32__) || defined(_WINDOWS))
+   return (void *)GetProcAddress((HINSTANCE)handle, symbol);
+#else
+   return dlsym(handle, symbol);
+#endif
+}
+
+static int _dlclose(void *handle)
+{
+#if (defined(__WIN32__) || defined(_WINDOWS))
+    return FreeLibrary((HINSTANCE)handle);
+#else
+    return dlclose(handle);
+#endif
+}
+
 static void usage()
 {
    fprintf(stdout, "pytest %s, tinypy rtstepperemc library test\n", PACKAGE_VERSION);
@@ -141,45 +168,45 @@ int main(int argc, char *argv[])
       }
    }
 
-   if ((hd = dlopen("./rtstepperemc." DLL_EXTENSION, RTLD_LAZY)) == NULL)
+   if ((hd = _dlopen("./rtstepperemc." DLL_EXTENSION)) == NULL)
    {
-      fprintf(stderr, "%s\n", dlerror());
+      fprintf(stderr, "unable to open %s\n", "./rtstepperemc." DLL_EXTENSION);
       goto bugout;
    }
 
-   if ((_emc_ui_open = dlsym(hd, "emc_ui_open")) == NULL)
+   if ((_emc_ui_open = _dlsym(hd, "emc_ui_open")) == NULL)
       goto bugout;
-   if ((_emc_ui_close = dlsym(hd, "emc_ui_close")) == NULL)
+   if ((_emc_ui_close = _dlsym(hd, "emc_ui_close")) == NULL)
       goto bugout;
-   if ((_emc_ui_mdi_cmd = dlsym(hd, "emc_ui_mdi_cmd")) == NULL)
+   if ((_emc_ui_mdi_cmd = _dlsym(hd, "emc_ui_mdi_cmd")) == NULL)
       goto bugout;
-   if ((_emc_ui_get_operator_message = dlsym(hd, "emc_ui_get_operator_message")) == NULL)
+   if ((_emc_ui_get_operator_message = _dlsym(hd, "emc_ui_get_operator_message")) == NULL)
       goto bugout;
-   if ((_emc_ui_estop = dlsym(hd, "emc_ui_estop")) == NULL)
+   if ((_emc_ui_estop = _dlsym(hd, "emc_ui_estop")) == NULL)
       goto bugout;
-   if ((_emc_ui_estop_reset = dlsym(hd, "emc_ui_estop_reset")) == NULL)
+   if ((_emc_ui_estop_reset = _dlsym(hd, "emc_ui_estop_reset")) == NULL)
       goto bugout;
-   if ((_emc_ui_machine_on = dlsym(hd, "emc_ui_machine_on")) == NULL)
+   if ((_emc_ui_machine_on = _dlsym(hd, "emc_ui_machine_on")) == NULL)
       goto bugout;
-   if ((_emc_ui_machine_off = dlsym(hd, "emc_ui_machine_off")) == NULL)
+   if ((_emc_ui_machine_off = _dlsym(hd, "emc_ui_machine_off")) == NULL)
       goto bugout;
-   if ((_emc_ui_home = dlsym(hd, "emc_ui_home")) == NULL)
+   if ((_emc_ui_home = _dlsym(hd, "emc_ui_home")) == NULL)
       goto bugout;
-   if ((_emc_ui_get_ini_key_value = dlsym(hd, "emc_ui_get_ini_key_value")) == NULL)
+   if ((_emc_ui_get_ini_key_value = _dlsym(hd, "emc_ui_get_ini_key_value")) == NULL)
       goto bugout;
-   if ((_emc_ui_mdi_mode = dlsym(hd, "emc_ui_mdi_mode")) == NULL)
+   if ((_emc_ui_mdi_mode = _dlsym(hd, "emc_ui_mdi_mode")) == NULL)
       goto bugout;
-   if ((_emc_ui_get_version = dlsym(hd, "emc_ui_get_version")) == NULL)
+   if ((_emc_ui_get_version = _dlsym(hd, "emc_ui_get_version")) == NULL)
       goto bugout;
-   if ((_emc_ui_auto_mode = dlsym(hd, "emc_ui_auto_mode")) == NULL)
+   if ((_emc_ui_auto_mode = _dlsym(hd, "emc_ui_auto_mode")) == NULL)
       goto bugout;
-   if ((_emc_ui_program_open = dlsym(hd, "emc_ui_program_open")) == NULL)
+   if ((_emc_ui_program_open = _dlsym(hd, "emc_ui_program_open")) == NULL)
       goto bugout;
-   if ((_emc_ui_program_run = dlsym(hd, "emc_ui_program_run")) == NULL)
+   if ((_emc_ui_program_run = _dlsym(hd, "emc_ui_program_run")) == NULL)
       goto bugout;
-   if ((_emc_ui_dout = dlsym(hd, "emc_ui_dout")) == NULL)
+   if ((_emc_ui_dout = _dlsym(hd, "emc_ui_dout")) == NULL)
       goto bugout;
-   if ((_emc_ui_wait_command_done = dlsym(hd, "emc_ui_wait_command_done")) == NULL)
+   if ((_emc_ui_wait_command_done = _dlsym(hd, "emc_ui_wait_command_done")) == NULL)
       goto bugout;
 
    if ((ps = _emc_ui_open(ini)) == NULL)
@@ -269,6 +296,6 @@ bugout:
    if (ret)
       fprintf(stderr, "pytest error: exiting\n");
    if (hd)
-      dlclose(hd);
+      _dlclose(hd);
    return ret;
 }

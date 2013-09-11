@@ -31,7 +31,7 @@ $package=@PACKAGE_NAME@
 %description virtual machine. The rtstepperemc software is based on the EMC2 project at linuxcnc.org. It uses
 %description the same gcode interpreter, trajectory planner, and GUI frontend. Manual, Auto, MDI and 
 %description Backplot CNC operations are supported.
-%description 
+%description .
 %description Author: David Suffield, dsuffiel@ecklersoft.com
 %description http://www.ecklersoft.com
 
@@ -44,13 +44,19 @@ $dll_version=2012-02-02
 %format all
 
 f 0755 root root $bindir/rt-test ${srcdir}/rt-test
-f 0755 root root $bindir/rt-test ${srcdir}/rt-pytest
 
 %system linux
 f 0644 root root $rulesdir/55-rt-stepper.rules ${srcdir}/55-rt-stepper.rules
 %system all
 
 f 0644 root root $emcconfdir/rtstepper.ini ${srcdir}/rtstepper.ini
+f 0755 root root $emcconfdir/m3.py ${srcdir}/tinypy/m3.py
+f 0755 root root $emcconfdir/m4.py ${srcdir}/tinypy/m4.py
+f 0755 root root $emcconfdir/m5.py ${srcdir}/tinypy/m5.py
+f 0755 root root $emcconfdir/m7.py ${srcdir}/tinypy/m7.py
+f 0755 root root $emcconfdir/m8.py ${srcdir}/tinypy/m8.py
+f 0755 root root $emcconfdir/m9.py ${srcdir}/tinypy/m9.py
+f 0755 root root $emcconfdir/m190.py ${srcdir}/tinypy/m190.py
 
 f 0755 root root $emcdir/mini/mini.tcl ${srcdir}/mini/mini.tcl
 f 0755 root root $emcdir/mini/emc.tcl ${srcdir}/mini/emc.tcl

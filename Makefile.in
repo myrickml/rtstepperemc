@@ -48,8 +48,9 @@ relnum = @relnum@
 DLL_EXTENSION = @dll_extension@
 mingw_path = @mingw_path@
 mingw_build = @mingw_build@
+mingw_inc_path = @mingw_inc_path@
+mingw_lib_path = @mingw_lib_path@
 mini_build = @mini_build@
-tcl_stub_lib_flag = @tcl_stub_lib_flag@
 darwin_build = @darwin_build@
 linux_build = @linux_build@
 BUNDLE = tkmini.app
@@ -69,6 +70,12 @@ docdir = doc
 emcconfdir = etc
 endif
 
+# Use this conditional for dmg bundles. Remove for source code "make install".
+ifeq ($(darwin_build),yes)
+docdir = doc
+emcconfdir = etc
+endif
+
 ifeq ($(mingw_build),yes)
 ifeq ($(host_cpu),i686)
 win_bin = win32
@@ -83,9 +90,9 @@ DEFS += -DLINELEN=255 \
 -DEMC2_DEFAULT_PROGRAM_PREFIX=\"$(emcconfdir)\" -DDLL_EXTENSION=\"$(DLL_EXTENSION)\"
 
 dist_doc_DATA = \
-COPYING ers.html dongle.jpg mini_linux.png mini_xp_full.png sig.png home_switch.png mini_osx_full.png bundle.png \
+COPYING ers.html dongle.jpg mini_linux.png mini_xp_full.png sig.png input_pins.png mini_osx_full.png bundle.png \
 zip_download.png extract.png wizard1.png wizard2.png wizard3.png unziped.png unpluged.png new_hardware.png \
-new_hardware2.png new_hardware3.png new_hardware4.png new_hardware6.png
+new_hardware2.png new_hardware3.png new_hardware4.png new_hardware6.png output_pins.png db25.png stack.png
 
 dist_noinst_BC_SCRIPTS = \
 tinypy/tokenize.py tinypy/encode.py tinypy/parse.py tinypy/py2bc.py
@@ -163,7 +170,7 @@ PYTEST_OBJ = $(dist_PYTEST_SOURCE:.c=.o)
 # Default
 all: rtstepperemc.$(DLL_EXTENSION) rt-test$(EXEEXT) rt-pytest$(EXEEXT)
 
-# bc.c
+# bc.c (compiled python modules)
 bc.c: $(BC_TPC)
 	rm -f bc.c
 	for i in $(BC_MODULES); do \
@@ -175,7 +182,7 @@ bc.c: $(BC_TPC)
 
 # Link program
 rtstepperemc.so: $(TASK_OBJ)
-	$(CXX) -shared -o $@ $(TASK_OBJ) -L. $(LDFLAGS) $(LIBS) -lusb -lpthread -DUSE_TCL_STUBS $(tcl_stub_lib_flag)
+	$(CXX) -shared -o $@ $(TASK_OBJ) -L. $(LDFLAGS) $(LIBS) -lusb -lpthread -DUSE_TCL_STUBS -ltcl
 
 rtstepperemc.dylib: $(TASK_OBJ)
 	$(CXX) -shared -o $@ $(TASK_OBJ) -Wl,-headerpad_max_install_names -L. $(LDFLAGS) $(LIBS) -lpthread -DUSE_TCL_STUBS -ltcl -lusb-legacy
@@ -193,8 +200,11 @@ endif
 rt-test.exe: $(RTTEST_OBJ)
 	$(CC) -o $@ $(RTTEST_OBJ) -L. $(LDFLAGS) $(LIBS) -lusb-winusb
 
-rt-pytest$(EXEEXT): $(PYTEST_OBJ)
+rt-pytest: $(PYTEST_OBJ)
 	$(CC) -o $@ $(PYTEST_OBJ) -L. $(LDFLAGS) $(LIBS) -ldl -lpthread
+
+rt-pytest.exe: $(PYTEST_OBJ)
+	$(CC) -o $@ $(PYTEST_OBJ) -L. $(LDFLAGS) $(LIBS) -lpthread
 
 # Compile with pattern rules
 %.o: %.c $(dist_PROGRAM_SOURCE_INC) $(dist_TINYPY_SOURCE_INC)
@@ -296,7 +306,7 @@ dmg:
 	$(mkinstalldirs) $(BUNDLE)/Contents/MacOS/lib
 	$(mkinstalldirs) $(BUNDLE)/Contents/Resources/$(docdir)
 	$(mkinstalldirs) $(BUNDLE)/Contents/Frameworks
-	@for i in $(dist_CONF_DATA); do \
+	@for i in $(dist_CONF_DATA) $(dist_TINYPY_SCRIPTS); do \
 	   $(INSTALL_DATA) $(srcdir)/$$i $(BUNDLE)/Contents/MacOS/$(emcconfdir); \
 	done
 	@for i in $(dist_doc_DATA); do \
@@ -359,18 +369,18 @@ dmg:
 zip:
 	rm -fr $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)
 	install -d $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/$(emcconfdir)
-	@for i in $(dist_CONF_DATA); do \
+	@for i in $(dist_CONF_DATA) $(dist_TINYPY_SCRIPTS); do \
 	   $(INSTALL_DATA) $(srcdir)/$$i $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/$(emcconfdir); \
 	done
 	install -d  $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/$(docdir)-$(VERSION)
 	@for i in $(dist_doc_DATA); do \
-	   $(INSTALL_DATA) $(srcdir)/$$i $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/$(docdir)-$(VERSION); \
+	   $(INSTALL_DATA) $(srcdir)/$$i $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/$(docdir); \
 	done
 	$(INSTALL) $(mingw_path)/pthreadGC2.dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
 	$(INSTALL) $(mingw_path)/libgcc_s_sjlj-1.dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
 	$(INSTALL) $(mingw_path)/libstdc++-6.dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
 	$(INSTALL_DATA) rt-stepper.inf $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
-	$(INSTALL) *.exe $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL) rt-test.exe $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
 	$(INSTALL_SCRIPT) mini/mini.tcl $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/tkmini.tcl
 	$(INSTALL) rtstepperemc.dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
 	$(INSTALL_SCRIPT) mini/emc.tcl $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
@@ -381,7 +391,7 @@ zip:
 	$(INSTALL) $(mingw_inc_path)/usb-winusb.h $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
 	$(INSTALL) $(mingw_path)/wusb-lsusb.exe $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
 	$(INSTALL) $(mingw_path)/libusb-winusb.dll $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
-	$(INSTALL) $(mingw_path)/libusb-winusb.a $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
+	$(INSTALL) $(mingw_lib_path)/libusb-winusb.a $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)/
 	zip -r $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum).zip $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)
 	rm -fr $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)
 

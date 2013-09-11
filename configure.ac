@@ -19,6 +19,8 @@
 #     or
 #
 #     ./configure --host i586-mingw32msvc (Ubuntu 9.04)
+#     ./configure --host=i686-w64-mingw32 LDFLAGS="-L/usr/i686-w64-mingw32/lib" (Ubuntu 12.04 32-bit)
+#     ./configure --host=x86_64-w64-mingw32 LDFLAGS="-L/usr/x86_64-w64-mingw32/lib" (Ubuntu 12.04 64-bit)
 #
 #     make
 #     make zip
@@ -90,7 +92,7 @@
 # Version 1.8.85, des 09/02/2013  Fixed tkmini hang in showMode(). Fixed mutex hang _wait_received(). 
 # Version 1.8.86, des 09/03/2013  Fixed a hang when exiting tkmini. Moved dongle mutex and write_done_cond into ui.cc. 
 
-AC_INIT([rtstepperemc], [1.8.87])
+AC_INIT([rtstepperemc], [1.8.89])
 AC_CANONICAL_HOST
 
 # Checks for programs.
@@ -172,8 +174,20 @@ if test "$mingw_build" = "yes"; then
    dll_extension="dll"
    if test "$host" = "i686-pc-mingw32"; then
       mingw_path="/usr/i686-pc-mingw32/sys-root/mingw/bin"
-   else
+      mingw_inc_path="/usr/i686-pc-mingw32/sys-root/mingw/include"
+      mingw_lib_path="/usr/i686-pc-mingw32/sys-root/mingw/lib"
+   elif test "$host" = "i686-w64-mingw32"; then
       mingw_path="/usr/${host}/lib"
+      mingw_inc_path="/usr/${host}/include"
+      mingw_lib_path="/usr/${host}/lib"  
+   elif test "$host" = "x86_64-w64-mingw32"; then
+      mingw_path="/usr/${host}/lib"
+      mingw_inc_path="/usr/${host}/include"
+      mingw_lib_path="/usr/${host}/lib"  
+   else
+      mingw_path="/usr/i586-mingw32msvc/lib"
+      mingw_inc_path="/usr/i586-mingw32msvc/include" # ??
+      mingw_lib_path="/usr/i586-mingw32msvc/lib"
    fi
 elif test "$darwin_build" = "yes"; then
    dll_extension="dylib"
@@ -230,9 +244,10 @@ AC_SUBST(relnum)
 AC_SUBST(rulesdir)
 AC_SUBST(dll_extension)
 AC_SUBST(mingw_path)
+AC_SUBST(mingw_inc_path)
+AC_SUBST(mingw_lib_path)
 AC_SUBST(mingw_build)
 AC_SUBST(mini_build)
-AC_SUBST(tcl_stub_lib_flag)
 AC_SUBST(darwin_build)
 AC_SUBST(linux_build)
 
