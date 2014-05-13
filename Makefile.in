@@ -360,7 +360,7 @@ dmg:
 </dict>\n\
 </plist>\n" > $(BUNDLE)/Contents/Info.plist
 	./create-dmg --window-size 500 380 --volname $(PACKAGE)-$(VERSION) --icon "tkmini" 110 55 --icon "rt-test" 380 55 \
-	  --icon "rtstepper.ini" 380 265 --icon "ers" 110 265 $(PACKAGE)-$(VERSION)-$(relnum)-macosx-10.6-intel.dmg tkmini.app
+	  --icon "rtstepper.ini" 380 265 --icon "ers" 110 265 $(PACKAGE)-$(VERSION)-$(relnum)-macosx-10.9-intel.dmg tkmini.app
 
 zip:
 	rm -fr $(PACKAGE)_$(win_bin)-$(VERSION)-$(relnum)
