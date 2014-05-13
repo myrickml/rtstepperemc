@@ -91,8 +91,9 @@
 # Version 1.8.83, des 08/27/2013  Got m190.py working. A python script for homing a specified axis.
 # Version 1.8.85, des 09/02/2013  Fixed tkmini hang in showMode(). Fixed mutex hang _wait_received(). 
 # Version 1.8.86, des 09/03/2013  Fixed a hang when exiting tkmini. Moved dongle mutex and write_done_cond into ui.cc. 
+# Version 2.0, des 09/10/2013  First public release with python script support for mcodes.
 
-AC_INIT([rtstepperemc], [1.8.89])
+AC_INIT([rtstepperemc], [2.0])
 AC_CANONICAL_HOST
 
 # Checks for programs.
