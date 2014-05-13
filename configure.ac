@@ -30,16 +30,16 @@
 # Notes on compiling on OSX.
 #
 #  1. Download install xcode to get the GNU tools.
-#  2. Download install darwinports at darwinport.org/getdp.
+#  2. Download install macports at www.macports.org.
 #  3. Install libusb support
 #
-#      sudo port install libusb-legacy
+#      sudo port install libusb-compat
 #
-#  4. Build binary for OSX 10.6.
+#  4. Build binary for OSX 10.9
 #
-#      ./configure --prefix=/opt/local LDFLAGS="-L/opt/local/lib -L/opt/local/lib/libusb-legacy" CFLAGS="-I/opt/local/include -I/opt/local/include/libusb-legacy" CXXFLAGS="-I/opt/local/include -I/opt/local/include/libusb-legacy"
+#     ./configure --prefix=/opt/local LDFLAGS=-L/opt/local/lib CFLAGS=-I/opt/local/include CXXFLAGS=-I/opt/local/include
 #     make
-#     make dmg
+#     make dmg 
 #
 # Notes on compiling on Ubuntu 10.04
 #
@@ -92,8 +92,9 @@
 # Version 1.8.85, des 09/02/2013  Fixed tkmini hang in showMode(). Fixed mutex hang _wait_received(). 
 # Version 1.8.86, des 09/03/2013  Fixed a hang when exiting tkmini. Moved dongle mutex and write_done_cond into ui.cc. 
 # Version 2.0, des 09/10/2013  First public release with python script support for mcodes.
+# Vesrion 2.0.1, des 05/12/2014   Updated Makefile for OSX 10.9 (Mavericks) support. 
 
-AC_INIT([rtstepperemc], [2.0])
+AC_INIT([rtstepperemc], [2.0.1])
 AC_CANONICAL_HOST
 
 # Checks for programs.
