@@ -64,10 +64,15 @@ The <i>rt-stepper</i> USB-to-Parallel dongle is a special dongle designed specif
 <p>
 Most CNC controllers are designed to be driven with a PC parallel port. Unfortunately parallel ports are a thing of the past and many new PCs have no parallel port. Commercial USB-to-Parallel dongles do exist, but these dongles are designed for printers not CNC controllers. CNC controllers require XYZ step/direction signals. With the <i>rt-stepper</i> dongle you can now drive XYZ step/direction signals over the USB bus.
 <p>
-The original <i>rt-stepper</i> software was a small terminal program that ran a small subset of CNC gcodes.
-This software was open source similar to the EMC2 open source project at <a href="http://www.linuxcnc.org">www.linuxcnc.org</a>. Both projects are separate PC applications that interpret gcode and drive CNC controllers. Instead of re-inventing another gcode interpreter the <i>rt-stepper</i> software is now based on the EMC2 software from <a href="http://www.linuxcnc.org">www.linuxcnc.org</a>. This provides a number of improvements over the original <i>rt-stepper</i> software - 4-axis support, complete gcode interpreter, trajectory planner, GUI front-end and Backploting. 
+The <i>rt-stepper</i> software is used to drive the dongle over the USB bus.
+This software is open source similar to the EMC2 open source project at <a href="http://www.linuxcnc.org">www.linuxcnc.org</a>. 
+Both projects are separate PC applications that interpret gcode and drive CNC controllers. 
+Instead of re-inventing another gcode interpreter the <i>rt-stepper</i> software is based on the EMC2 software 
+from <a href="http://www.linuxcnc.org">www.linuxcnc.org</a>. 
+By re-purposing the EMC2 software the <i>rt-stepper</i> software provides - 4-axis support, complete gcode interpreter, 
+trajectory planner, GUI front-end and Backploting. 
 <p>
-Note through out the rest of this document the term "EMC2" and "EMC2 software" refers to software from the EMC2 project at <a href="http://www.linuxcnc.org">www.linuxcnc.org</a> that is now used in the <i>rt-stepper</i> software project. Both projects have separate code bases and create separate executables or binaries.
+Note through out the rest of this document the term "EMC2" and "EMC2 software" refers to software from the EMC2 project at <a href="http://www.linuxcnc.org">www.linuxcnc.org</a>. Both projects have separate code bases and create separate executables or binaries.
 <p>
 Since the <i>rt-stepper</i> dongle provides the real time step pulse generator this version of EMC2 has been re-factored. The EMC2 real time component has been removed. There are no kernel modules or real time kernel patch dependencies. This allows EMC2 (rtstepperemc) to run on Linux, Mac or Windows. 
 <p> 
