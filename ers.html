@@ -352,6 +352,7 @@ All though not a complete list the following OSs have be tested.
 <li> Ubuntu 10.04
 <li> Ubuntu 12.04
 <li> MacBook Intel OSX 10.6.4
+<li> MacBook Air 11" OSX 10.9.2
 <li> Windows XP
 <li> Windows 7
 </ul>
@@ -482,7 +483,7 @@ dpkg -i rtstepperemc-1.7.1-0-x86_32.deb
 </ol>
 
 <H3><a name="binaryMac"></a>11.3 Mac OSX Install</a></H3>
-For Mac OSX use the following instructions to install <i>rt-stepper</i>. The instructions have been tested on OSX 10.6.
+For Mac OSX use the following instructions to install <i>rt-stepper</i>. The instructions have been tested on OSX 10.6 and 10.9.
 <ol>
 <li> Download the latest <i>rt-stepper</i> dmg disk image from <a href="http://www.ecklersoft.com/download.shtml">www.ecklersoft.com/download</a>. Note the disk image software version number will be the same or higher.
 </li>
@@ -526,27 +527,22 @@ make install
 </li>
 </ol>
 
-For Mac OSX 1.6 use the following steps to build and install <i>rt-stepper</i>.
+For Mac OSX 1.6 through 1.9 use the following steps to build and install <i>rt-stepper</i>.
 <ol>
 <li> Download install xcode to get the GNU tools.
 </li>
-<li> Download install darwinports at darwinports.org/getdp.
+<li> Download install macports at www.macports.org
 </li>
 <li> Install libusb.
 <pre>
-sudo port install libusb-legacy
-</pre>
-</li>
-<li> Install gettext.
-<pre>
-sudo port install gettext.
+sudo port install libusb-compat
 </pre>
 </li>
 <li> Download and untar the latest <i>rt-stepper</i> tar ball. 
 </li>
 <li> In the <i>rt-stepper</i> directory build and install <i>rt-stepper</i>.
 <pre>
-./configure --prefix=/opt/local LDFLAGS="-L/opt/local/lib -L/opt/local/lib/libusb-legacy" CFLAGS="-I/opt/local/include -I/opt/local/include/libusb-legacy" CXXFLAGS="-I/opt/local/include -I/opt/local/include/libusb-legacy"
+ ./configure --prefix=/opt/local LDFLAGS=-L/opt/local/lib CFLAGS=-I/opt/local/include CXXFLAGS=-I/opt/local/include
 make
 make dmg
 </pre>
@@ -798,9 +794,9 @@ Weight: 2.3 oz.
 <hr>
 <font size=2>
 <center>
-&#169 2009-2013 Eckler Software<br>
+&#169 2009-2014 Eckler Software<br>
 <IMG SRC="sig.png"><br>
-Last updated September 10, 2013
+Last updated May 12, 2014
 </center>
 </font>
 </font>
