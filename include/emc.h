@@ -54,7 +54,6 @@ struct emc_session
    int control_cycle_thread_active;
    pthread_t control_cycle_thread_tid;
    int mcode_thread_active;
-   int mcode_thread_abort;
    int mcode_script_active;
    pthread_t mcode_thread_tid;
    struct rtstepper_app_session dongle;

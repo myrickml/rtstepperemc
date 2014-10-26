@@ -521,7 +521,7 @@ static void control_cycle_thread(struct emc_session *ps)
    return;
 } /* control_cycle_thread() */
 
-/* Asynchronous IO write command. Called by control_thread(). Used by motion commands. */
+/* Asynchronous IO write command. Called by command_thread(). Used by motion commands. */
 static int _emc_aio_write_command(emcmot_command_t *c)
 {
    struct emc_session *ps = &session;
@@ -1925,8 +1925,8 @@ static int emcTaskSetMode(int mode)
 int emcTaskSetState(int state)
 {
    struct emc_session *ps = &session;
-   int i;
-   int retval = EMC_R_OK;
+   int i,msg;
+   int retval=EMC_R_OK;
 
    switch (state)
    {
@@ -1981,12 +1981,34 @@ int emcTaskSetState(int state)
       break;
    case EMC_TASK_STATE_ESTOP:
       BUG("emcTaskSetState(EMC_TASK_STATE_ESTOP)\n");
-      if (ps->control_cycle_thread_active)
+
+      /* Stop any USB IO at the dongle. */
+      rtstepper_set_abort(&ps->dongle);
+
+      msg = 0;
+      if (ps->dongle.xfr_active)
       {
-         pthread_cancel(ps->control_cycle_thread_tid); /* kill trajectory planner now */
-         ps->control_cycle_thread_active = 0;
+	 msg = 1;
+	 emcOperatorMessage(0, EMC_I18N("ESTOP waiting for USB IO delete..."));
       }
-      rtstepper_set_abort_wait(&ps->dongle);
+
+      /*
+       * Don't use pthead_cancel() on the control_cycle_thread() here because it can leave 
+       * the dongle.mutex locked. This will cause the gui to hang forever.  DES 10/22/2014 
+       */
+
+      /* Wait for control_cycle_thread() to finish. */
+      pthread_mutex_lock(&ps->mutex);
+      while (ps->control_cycle_thread_active)
+         pthread_cond_wait(&ps->control_cycle_thread_done_cond, &ps->mutex);
+      pthread_mutex_unlock(&ps->mutex);
+
+      /* Wait for any remaining USB IO to finish. */
+      pthread_mutex_lock(&ps->dongle.mutex);
+      while (ps->dongle.xfr_active)
+	 pthread_cond_wait(&ps->dongle.write_done_cond, &ps->dongle.mutex);
+      pthread_mutex_unlock(&ps->dongle.mutex);
+
       emcMotionAbort();
       emcSpindleOff();
       emcAuxEstopOn();
@@ -2007,6 +2029,8 @@ int emcTaskSetState(int state)
          SET_JOINT_INPOS_FLAG(&joints[i], 1);
 
       interp.synch();
+      if (msg)      
+         emcOperatorMessage(0, EMC_I18N("ESTOP complete."));
       break;
    default:
       retval = EMC_R_ERROR;

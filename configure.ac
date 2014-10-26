@@ -41,9 +41,15 @@
 #     make
 #     make dmg 
 #
-# Notes on compiling on Ubuntu 10.04
+# Notes on compiling on Ubuntu.
 #
-#     ./configure --prefix=/usr CFLAGS=-I/usr/include/tcl8.4 CXXFLAGS=-I/usr/include/tcl8.4 
+#     ./configure --prefix=/usr CFLAGS=-I/usr/include/tcl8.4 CXXFLAGS=-I/usr/include/tcl8.4 (Ubuntu 10.04)
+#
+#     or
+#
+#     ./configure --prefix=/usr CFLAGS=-I/usr/include/tcl8.5 CXXFLAGS=-I/usr/include/tcl8.5 (Ubuntu 12.04)
+#     ./configure --prefix=/usr CFLAGS="-g -Wall -I/usr/include/tcl8.5" CXXFLAGS="-g -Wall -I/usr/include/tcl8.5" (Ubuntu 12.04 with debug)
+#
 #     make
 #     make install
 #
@@ -92,9 +98,10 @@
 # Version 1.8.85, des 09/02/2013  Fixed tkmini hang in showMode(). Fixed mutex hang _wait_received(). 
 # Version 1.8.86, des 09/03/2013  Fixed a hang when exiting tkmini. Moved dongle mutex and write_done_cond into ui.cc. 
 # Version 2.0, des 09/10/2013  First public release with python script support for mcodes.
-# Vesrion 2.0.1, des 05/12/2014   Updated Makefile for OSX 10.9 (Mavericks) support. 
+# Version 2.0.1, des 05/12/2014   Updated Makefile for OSX 10.9 (Mavericks) support. 
+# Version 2.0.2, des 10/25/2014   Fixed a problem where tkmini whould hang forever after ESTOP. The hang only occured when running a gcode file.
 
-AC_INIT([rtstepperemc], [2.0.1])
+AC_INIT([rtstepperemc], [2.0.2])
 AC_CANONICAL_HOST
 
 # Checks for programs.

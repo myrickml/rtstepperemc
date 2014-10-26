@@ -731,7 +731,7 @@ proc toggleEstop {} {
         }
     } else {
         emc_estop on
-        emc_wait done wait_timeout
+#        emc_wait done wait_timeout
         emc_machine off
         if { [info exists coord ] } {
             catch {$coord.bzero configure -bg lightgray -state disabled}

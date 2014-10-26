@@ -659,12 +659,20 @@ enum RTSTEPPER_RESULT rtstepper_set_abort_wait(struct rtstepper_app_session *ps)
    DBG("rtstepper_set_abort_wait()\n");
    rtstepper_set_abort(ps);
 
+   /* Wait for any IO to finish. */
+   pthread_mutex_lock(&ps->mutex);
+   while (ps->xfr_active)
+      pthread_cond_wait(&ps->write_done_cond, &ps->mutex);
+   pthread_mutex_unlock(&ps->mutex);
+
+#if 0  /* Don't use pthead_cancel() because it can leave mutex locked. DES 10/22/2014 */
    /* Instead of waiting for all IO to finish, kill it now. */
    if (ps->xfr_active)
    {
       pthread_cancel(ps->bulk_write_tid);
       pthread_cond_broadcast(&ps->write_done_cond);
    }
+#endif
 
    /* Wait for step buffer to drain. */
    while ((stat = rtstepper_query_state(ps)) == RTSTEPPER_R_OK)

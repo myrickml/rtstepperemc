@@ -274,7 +274,9 @@ DLL_EXPORT enum EMC_RESULT emc_ui_estop(void *hd)
    cmd->msg.type = EMC_TASK_SET_STATE_TYPE;
    cmd->state = EMC_TASK_STATE_ESTOP;
    cmd->msg.serial_number = ++emcCommandSerialNumber;
-   _wait_received(ps, send_message(ps, &mb, _gui_tag), 0.0);
+   //_wait_received(ps, send_message(ps, &mb, _gui_tag), 0.0);
+   send_message(ps, &mb, _gui_tag);
+
    return EMC_R_OK;
 }       /* emc_ui_send_estop() */
 
@@ -316,7 +318,8 @@ DLL_EXPORT enum EMC_RESULT emc_ui_machine_off(void *hd)
    cmd->msg.type = EMC_TASK_SET_STATE_TYPE;
    cmd->state = EMC_TASK_STATE_OFF;
    cmd->msg.serial_number = ++emcCommandSerialNumber;
-   _wait_received(ps, send_message(ps, &mb, _gui_tag), 0.0);
+   //_wait_received(ps, send_message(ps, &mb, _gui_tag), 0.0);
+   send_message(ps, &mb, _gui_tag);
    return EMC_R_OK;
 }       /* emc_ui_send_machine_off() */
 
