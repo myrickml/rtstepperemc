@@ -1206,7 +1206,7 @@ set oridetop [frame $oride.top]
 set oridebottom [frame $oride.bottom]
 set oridelabel [label $oridetop.label -text [msgcat::mc "Feed Override:"] ]
 set oridevalue [label $oridetop.value -textvariable realfeedoverride ]
-set oridescale [scale $oridebottom.scale -length $oridescalelength -from 0 -to $maxFeedOverride \
+set oridescale [scale $oridebottom.scale -length $oridescalelength -from 1 -to $maxFeedOverride \
     -variable realfeedoverride -orient horizontal -showvalue 0 -command {emc_feed_override} -takefocus 0]
 pack $oridelabel -side left
 pack $oridevalue -side right -padx 2m ; # don't bump against label
@@ -1470,7 +1470,7 @@ set feedlabel [label $manframe.label -text [msgcat::mc "Speed:"] -width 10]
 set feedvalue [label $manframe.value -textvariable jogSpeed -width 10 -anchor w]
 set feedspace [label $manframe.space -text "" -width 10 ]
 set feedrapid [button $manframe.rapid -text [msgcat::mc "RAPID"] -width 10 -command {set jogSpeed $maxJogSpeed}]
-set feedscale [scale $manframe.scale -length 270 -from 0 -to $maxJogSpeed -variable jogSpeed -orient horizontal -showvalue 0 -takefocus 0]
+set feedscale [scale $manframe.scale -length 270 -from 1 -to $maxJogSpeed -variable jogSpeed -orient horizontal -showvalue 0 -takefocus 0]
 bind $feedlabel <ButtonPress-1> {popupJogSpeed}
 bind $feedlabel <ButtonPress-3> {popupJogSpeed}
 bind $feedvalue <ButtonPress-1> {popupJogSpeed}

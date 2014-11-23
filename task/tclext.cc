@@ -1719,8 +1719,8 @@ static int emc_feed_override(ClientData cd, Tcl_Interp * interp, int objc, Tcl_O
 
    if (Tcl_GetIntFromObj(0, objv[1], &percent) == TCL_OK)
    {
-      DBG("emc_feed_override() WRITE percent=%0.6f\n", percent / 100.0);
-      emc_ui_feed_override(cd, ((double) percent) / 100.0);
+      DBG("emc_feed_override() WRITE percent=%0.6f\n", (double)percent / 100.0);
+      emc_ui_feed_override(cd, ((double)percent) / 100.0);
       return TCL_OK;
    }
 

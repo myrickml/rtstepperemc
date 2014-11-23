@@ -100,8 +100,9 @@
 # Version 2.0, des 09/10/2013  First public release with python script support for mcodes.
 # Version 2.0.1, des 05/12/2014   Updated Makefile for OSX 10.9 (Mavericks) support. 
 # Version 2.0.2, des 10/25/2014   Fixed a problem where tkmini whould hang forever after ESTOP. The hang only occured when running a gcode file.
+# Version 2.0.3, des 11/22/2014   Fixed a intermittant problem where tkmini FEEDHOLD was active (RED) at startup. FEEDHOLD has been disabled. Use ABORT or ESTOP.
 
-AC_INIT([rtstepperemc], [2.0.2])
+AC_INIT([rtstepperemc], [2.0.3])
 AC_CANONICAL_HOST
 
 # Checks for programs.

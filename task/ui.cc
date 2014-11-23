@@ -1074,6 +1074,7 @@ DLL_EXPORT void *emc_ui_open(const char *ini_file)
    emcStatus->io.aux.estop = 1;
    emcStatus->motion.traj.enabled = 0;
    emcStatus->motion.traj.mode = EMC_TRAJ_MODE_FREE;    /* for manual mode */
+   emcStatus->motion.traj.scale = 1.0; /* fixes a race condition with tkmini feed-override, DES 11/22/2014 */
    emcStatus->io.status = RCS_DONE;
 
    emcStatus->task.interpState = EMC_TASK_INTERP_IDLE;
