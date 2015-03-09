@@ -1,0 +1,6 @@
+<?xml version="1.0" ?>
+<svg width="0.22in" height="0.22in" viewBox="0 0 0.22 0.22" xmlns="http://www.w3.org/2000/svg" version="1.1">
+  <desc>Example circle01 - circle filled with red and stroked with blue</desc>
+
+  <circle cx="0.11" cy="0.11" r="0.10" fill="green" stroke="black" stroke-width="0.01"  />
+</svg>

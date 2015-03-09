@@ -1,0 +1,240 @@
+#
+#  Makefile.in - make input file
+#
+#  (c) 2010-2015 Copyright Eckler Software
+# 
+#  Author: David Suffield, dsuffiel@ecklersoft.com
+#
+
+SHELL = /bin/sh
+VPATH = @srcdir@
+
+subdirs = @subdirs@
+top_srcdir = @top_srcdir@
+srcdir = @srcdir@
+prefix = @prefix@
+exec_prefix = @exec_prefix@
+bindir = @bindir@
+datarootdir=@datarootdir@
+infodir = @infodir@
+libdir = @libdir@
+docdir = $(datarootdir)/doc/@PACKAGE_NAME@
+mandir = @mandir@
+emcdir = $(datarootdir)/@PACKAGE_NAME@
+emcconfdir = /etc/@PACKAGE_NAME@
+emcrulesdir = /etc/udev/rules.d
+
+CC = @CC@
+CXX = @CXX@
+CXXFLAGS = @CXXFLAGS@
+CFLAGS =  @CFLAGS@ 
+LDFLAGS = @LDFLAGS@
+LIBS = @LIBS@
+DEFS = @DEFS@
+INSTALL = @INSTALL@
+VERSION = @PACKAGE_VERSION@
+
+PACKAGE = @PACKAGE_NAME@
+EXEEXT = @EXEEXT@
+INSTALL_DATA = $(INSTALL) -m 644
+INSTALL_PROGRAM = $(INSTALL)
+INSTALL_SCRIPT = $(INSTALL)
+mkinstalldirs = $(INSTALL) -d
+host = @host@
+EPM_PACKAGE = @PACKAGE_NAME@
+
+platform = @platform@
+relnum = @relnum@
+DLL_EXTENSION = @dll_extension@
+mingw_path = @mingw_path@
+mingw_build = @mingw_build@
+mingw_inc_path = @mingw_inc_path@
+mingw_lib_path = @mingw_lib_path@
+mini_build = @mini_build@
+darwin_build = @darwin_build@
+linux_build = @linux_build@
+host_cpu = @host_cpu@
+
+DLL_NAME = rtstepperemc_py
+
+INCLUDES = -I./ -Irs274ngc
+
+CFLAGS += -std=gnu99
+
+ifeq ($(mingw_build),no)
+CFLAGS += -fvisibility=hidden
+CXXFLAGS += -fvisibility=hidden -fvisibility-inlines-hidden
+endif
+
+ifeq ($(mingw_build),yes)
+docdir = doc
+emcconfdir = etc
+endif
+
+ifeq ($(darwin_build),yes)
+docdir = doc
+emcconfdir = etc
+endif
+
+ifeq ($(mingw_build),yes)
+ifeq ($(host_cpu),i686)
+win_bin = win32
+endif
+ifeq ($(host_cpu),x86_64)
+win_bin = win64
+endif
+endif
+
+DEFS += -DLINELEN=255 -DDLL_EXTENSION=\"$(DLL_EXTENSION)\"
+
+dist_doc_DATA = \
+COPYING 
+
+dist_noinst_SCRIPTS = \
+bootstrap configure.ac config.guess install-sh configure config.sub \
+green_led.svg red_led.svg orange_led.svg
+
+dist_noinst_DATA = \
+Makefile.in aclocal.m4
+
+dist_MINI_SCRIPTS = \
+pymini.py pyemc.py arduino.py backplot.py 
+
+dist_PLUGIN_SCRIPTS = \
+plugin/m190.py plugin/m3.py plugin/m4.py plugin/m5.py plugin/m6.py plugin/m7.py plugin/m8.py plugin/m9.py 
+
+dist_CONF_DATA = \
+rtstepper.ini green_led.gif red_led.gif orange_led.gif
+
+dist_DATA = \
+55-rt-stepper.rules $(dist_CONF_DATA) 
+
+dist_SOURCE_INC = \
+bug.h emc.h ini.h list.h posemath.h linklist.h tp.h tc.h emcpos.h emctool.h rtstepper.h
+
+dist_RS274NGC_INC = \
+rs274ngc/canon.h rs274ngc/interp_internal.h \
+rs274ngc/interpl.h rs274ngc/interp_queue.h rs274ngc/interp_return.h \
+rs274ngc/linklist.h rs274ngc/posemath.h rs274ngc/rs274ngc.h rs274ngc/rs274ngc_interp.h \
+rs274ngc/rs274ngc_return.h rs274ngc/units.h
+
+dist_RS274NGC_SOURCE = \
+rs274ngc/interp_arc.cc rs274ngc/interp_array.cc rs274ngc/interp_check.cc rs274ngc/interp_convert.cc rs274ngc/interp_queue.cc \
+rs274ngc/interp_cycles.cc rs274ngc/interp_execute.cc rs274ngc/interp_find.cc rs274ngc/interp_internal.cc rs274ngc/interp_inverse.cc \
+rs274ngc/interp_read.cc rs274ngc/interp_write.cc rs274ngc/interp_o_word.cc rs274ngc/nurbs_additional_functions.cc \
+rs274ngc/rs274ngc_pre.cc rs274ngc/interpl.cc
+
+dist_SOURCE = \
+ui.c lookup.c ini.c dispatch.cc emccanon.cc posemath.cc _posemath.c linklist.cc tp.c tc.c motctl.c rtstepper.c
+
+dist_RTTEST_SOURCE = rt-test.c
+dist_PYTEST_SOURCE = pytest.c
+
+RS274NGC_OBJ = $(addsuffix .o, $(basename $(dist_RS274NGC_SOURCE)))
+PYTEST_OBJ = $(addsuffix .o, $(basename $(dist_PYTEST_SOURCE)))
+RTTEST_OBJ =  $(addsuffix .o, $(basename $(dist_RTTEST_SOURCE)))
+OBJ = $(addsuffix .o, $(basename $(dist_SOURCE))) $(RS274NGC_OBJ)
+
+# Default
+all: $(DLL_NAME).$(DLL_EXTENSION) rt-test$(EXEEXT) pytest$(EXEEXT) version
+
+$(DLL_NAME).so: $(OBJ)
+	$(CXX) -shared -Wl,--no-undefined -o $@ $(OBJ) -L. $(LDFLAGS) $(LIBS) -lusb-1.0 -lpthread -lrt
+
+$(DLL_NAME).dylib: $(OBJ)
+	$(CXX) -shared -Wl,-undefined,error -o $@ $(OBJ) -Wl,-headerpad_max_install_names -L. $(LDFLAGS) $(LIBS) -lpthread -lusb-1.0 -lrt
+
+rt-test: $(RTTEST_OBJ)
+	$(CC) -o $@ $(RTTEST_OBJ) -L. $(LDFLAGS) $(LIBS) -lusb-1.0
+
+pytest: $(PYTEST_OBJ)
+	$(CC) -o $@ $(PYTEST_OBJ) -L. $(LDFLAGS) $(LIBS) -ldl -lpthread
+
+$(DLL_NAME).dll: $(OBJ)
+	$(CXX) -shared -Wl,--no-undefined -o $@ $(OBJ) -L. $(LDFLAGS) $(LIBS) -lusb-winusb -lpthread -lwsock32
+
+# Compile with pattern rules
+%.o: %.c $(dist_SOURCE_INC) $(dist_RS274NGC_INC)
+	$(CC) -c $< -o $@ $(CFLAGS) $(DEFS) $(INCLUDES) 
+%.o: %.cc $(dist_SOURCE_INC) $(dist_RS274NGC_INC)
+	$(CXX) -c $< -o $@ $(CXXFLAGS) $(DEFS) $(INCLUDES) 
+
+#
+# Install
+#
+install: all install_$(DLL_NAME).$(DLL_EXTENSION)
+
+# Install programs 
+install_$(DLL_NAME).so:
+	$(mkinstalldirs) $(DESTDIR)$(emcdir)
+	$(INSTALL) $(srcdir)/$(DLL_NAME).$(DLL_EXTENSION) $(DESTDIR)$(emcdir)
+	$(INSTALL_SCRIPT) $(srcdir)/$(dist_MINI_SCRIPTS) $(DESTDIR)$(emcdir)
+	$(INSTALL_SCRIPT) $(srcdir)/version.py $(DESTDIR)$(emcdir)
+	$(INSTALL_DATA) $(srcdir)/$(dist_CONF_DATA) $(DESTDIR)$(emcdir)
+	$(INSTALL) $(srcdir)/rt-test $(DESTDIR)$(emcdir)
+	$(mkinstalldirs) $(DESTDIR)$(docdir)-$(VERSION)
+	@for i in $(dist_doc_DATA); do \
+	   $(INSTALL_DATA) $(srcdir)/$$i $(DESTDIR)$(docdir)-$(VERSION); \
+	done
+ifeq ($(linux_build),yes)
+	$(mkinstalldirs) $(DESTDIR)$(emcrulesdir)
+	$(INSTALL_DATA) $(srcdir)/55-rt-stepper.rules $(DESTDIR)$(emcrulesdir)
+endif
+	$(mkinstalldirs) $(DESTDIR)$(emcdir)/plugin
+	@for i in $(dist_PLUGIN_SCRIPTS); do \
+	   $(INSTALL_SCRIPT) $(srcdir)/$$i $(DESTDIR)$(emcdir)/plugin; \
+	done
+	$(mkinstalldirs) $(DESTDIR)$(bindir)
+	ln -sf ../share/$(PACKAGE)/pymini.py $(DESTDIR)$(bindir)/pymini
+	ln -sf ../share/$(PACKAGE)/rt-test $(DESTDIR)$(bindir)/rt-test
+
+install_$(DLL_NAME).dll:
+
+#
+# Uninstall
+#
+uninstall: uninstall_$(DLL_NAME).$(DLL_EXTENSION)
+
+# Uninstall program
+uninstall_$(DLL_NAME).so:
+	rm -fr $(DESTDIR)$(emcdir)
+	rm -fr $(DESTDIR)$(docdir)-$(VERSION)
+ifeq ($(linux_build),yes)
+	rm -f $(DESTDIR)$(emcrulesdir)/55-rt-stepper.rules
+endif
+	rm -f $(DESTDIR)$(bindir)/pymini
+	rm -f $(DESTDIR)$(bindir)/rt-test
+
+uninstall_$(DLL_NAME).dll:
+
+# The following '@' prefix suppresses the shell commands from being echoed. 
+version:
+	@date=`date "+%m-%d-%Y_%H-%M-%S"`; \
+	echo "# This file is generated by the makefile, do NOT edit." > version.py; \
+	echo "class Version(object):" >> version.py; \
+	echo "   name = '$(PACKAGE)'" >> version.py; \
+	echo "   date = '$$date'" >> version.py; \
+	echo "   release = '$(VERSION)'" >> version.py; \
+	echo "   dll = './$(DLL_NAME).$(DLL_EXTENSION)'" >> version.py; \
+
+dist:
+	rm -fr $(PACKAGE)-$(VERSION)
+	install -d $(PACKAGE)-$(VERSION)
+	cp $(dist_noinst_SCRIPTS) $(dist_MINI_SCRIPTS) $(dist_noinst_DATA) $(dist_doc_DATA) $(dist_DATA) $(PACKAGE)-$(VERSION)
+	cp $(dist_SOURCE) $(dist_PYTEST_SOURCE) $(dist_RTTEST_SOURCE) $(dist_SOURCE_INC) $(PACKAGE)-$(VERSION)
+	install -d $(PACKAGE)-$(VERSION)/rs274ngc
+	cp $(dist_RS274NGC_SOURCE) $(dist_RS274NGC_INC) $(PACKAGE)-$(VERSION)/rs274ngc
+	install -d $(PACKAGE)-$(VERSION)/plugin
+	cp $(dist_PLUGIN_SCRIPTS) $(PACKAGE)-$(VERSION)/plugin
+	tar czvf $(PACKAGE)-$(VERSION).tar.gz $(PACKAGE)-$(VERSION)
+	rm -r $(PACKAGE)-$(VERSION)
+
+gif:
+	convert -transparent white red_led.svg red_led.gif
+	convert -transparent white green_led.svg green_led.gif
+	convert -transparent white orange_led.svg orange_led.gif
+
+clean:	
+	rm -f *~ *.o rs274ngc/*~ rs274ngc/*.o plugin/*~
+
+.PHONY: dist uninstall install all clean version gif
