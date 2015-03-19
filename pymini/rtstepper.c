@@ -35,7 +35,6 @@
 #include <pthread.h>
 #include <math.h>
 #include <unistd.h>
-#include <time.h>
 #include "emc.h"
 #include "bug.h"
 
@@ -505,6 +504,7 @@ enum EMC_RESULT rtstepper_start_xfr(struct emc_session *ps, struct rtstepper_io_
 
 enum EMC_RESULT rtstepper_wait_xfr(struct emc_session *ps)
 {
+   struct timeval tv;
    struct timespec ts;
    int rc;
 
@@ -518,8 +518,9 @@ enum EMC_RESULT rtstepper_wait_xfr(struct emc_session *ps)
     */
    do
    {
-      clock_gettime(CLOCK_REALTIME, &ts);
-      ts.tv_sec += 2;
+      gettimeofday(&tv, NULL);
+      ts.tv_sec = tv.tv_sec + 2;    /* 2 sec timeout */
+      ts.tv_nsec = 0;
       rc=0;
       pthread_mutex_lock(&_mutex);
       while (list_empty(&ps->head.list)==0 && (ps->state_bits & EMC_STATE_ESTOP_BIT)==0 && rc==0)
@@ -972,9 +973,9 @@ enum EMC_RESULT rtstepper_open(struct emc_session *ps)
    if ((stat = open_device(&ps->fd_table, ps->serial_num)) != EMC_R_OK)
    {
       if (ps->serial_num[0])
-         BUG("unable to find rtstepper dongle serial number: %s\n", ps->serial_num);
+         MSG("unable to find rtstepper dongle serial number: %s\n", ps->serial_num);
       else
-         BUG("unable to find rtstepper dongle\n");
+         MSG("unable to find rtstepper dongle\n");
       goto bugout;
    }
 

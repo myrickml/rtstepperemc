@@ -147,11 +147,11 @@ class BackPlot(object):
       self.z_rotate = 30
       self.redraw()
 
-   def zoom_in(self):
+   def zoom_out(self):
       self.scaler *= 2.0
       self.redraw()
 
-   def zoom_out(self):
+   def zoom_in(self):
       self.scaler *= 0.5
       self.redraw()
 

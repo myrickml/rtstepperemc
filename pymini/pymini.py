@@ -77,6 +77,7 @@ class JogSel(object):
 class AutoSel(object):
    OPEN = 1
    RUN = 2
+   VERIFY = 3
 
 class GuiEvent(object):
    """Events from mech to gui."""
@@ -87,12 +88,23 @@ class GuiEvent(object):
    MECH_ESTOP = 5  # auto estop from mech
    MECH_PAUSED = 6  # M0, M1 or M60
 
+class ButtonState(object):
+   # estop, home, jog, mdi, run, resume, verify
+   #  0,     1,   2,   3,   4,   5,      6,
+   ESTOP  = [ 1, 0, 0, 0, 0, 0, 1 ]
+   BUSY   = [ 1, 0, 0, 0, 0, 0, 0 ]
+   BUSY2  = [ 0, 0, 0, 0, 0, 0, 0 ]
+   IDLE   = [ 1, 1, 1, 1, 1, 0, 0 ]
+   RESUME = [ 1, 0, 0, 0, 1, 0, 0 ]
+   VERIFY = [ 0, 0, 0, 0, 0, 0, 2 ]
+
 class MechEvent(object):
    """Events from gui to mech."""
    CMD_RUN = 1
    CMD_MDI = 2
    CMD_ALL_ZERO = 3
    CMD_ESTOP_RESET = 4
+   CMD_VERIFY = 5
 
 def usage():
    print("%s %s %s, GUI for rtstepperemc library" % (Version.name, Version.release, Version.date))
@@ -135,7 +147,7 @@ class Mech(object):
       # Main thread() function.
       def run(self):
          if (not(self.dog.get_state() & MechStateBit.ESTOP)):
-            self.post_idle()
+            self.post_idle(ButtonState.IDLE)
 
          while (1):
             # Check for thread shutdown.
@@ -156,14 +168,17 @@ class Mech(object):
                   self.cmd_all_zero()
                elif (e['id'] == MechEvent.CMD_ESTOP_RESET):
                   self.cmd_estop_reset()
+               elif (e['id'] == MechEvent.CMD_VERIFY):
+                  self.cmd_verify(e['file'])
                else:
                   pass
                e = None
 
-      def post_idle(self):
+      def post_idle(self, bstate):
          """ Let gui know we are idle. """
          m = {}
          m['id'] = GuiEvent.MECH_IDLE
+         m['bstate'] = bstate
          self.guiq.put(m)
 
       def cmd_mdi(self, buf):
@@ -175,8 +190,10 @@ class Mech(object):
             except:
                logging.error("Unable to process MDI command: %s" % (ln))
          self.dog.wait_io_done()
-         if (not(self.dog.get_state() & MechStateBit.ESTOP)):
-            self.post_idle()
+         if (self.dog.get_state() & MechStateBit.ESTOP):
+            self.post_idle(ButtonState.ESTOP)
+         else:
+            self.post_idle(ButtonState.IDLE)
 
       def cmd_auto(self, gcodefile):
          try:
@@ -185,18 +202,33 @@ class Mech(object):
          except:
             logging.error("Unable to process gcode file: %s" % (gcodefile))
          self.dog.wait_io_done()
-         if (not(self.dog.get_state() & MechStateBit.ESTOP or self.dog.get_state() & MechStateBit.PAUSED)):
-            self.post_idle()
+         if (self.dog.get_state() & MechStateBit.ESTOP):
+            self.post_idle(ButtonState.ESTOP)
+         elif (self.dog.get_state() & MechStateBit.PAUSED):
+            self.post_idle(ButtonState.RESUME)
+         else:
+            self.post_idle(ButtonState.IDLE)
+
+      def cmd_verify(self, gcodefile):
+         try:
+            # Execute gcode file.
+            self.dog.verify_cmd(gcodefile)
+         except:
+            logging.error("Unable to process gcode file: %s" % (gcodefile))
+         if (self.dog.get_state() & MechStateBit.ESTOP):
+            self.post_idle(ButtonState.ESTOP)
+         else:
+            self.post_idle(ButtonState.IDLE)
 
       def cmd_all_zero(self):
          self.dog.home()
          if (not(self.dog.get_state() & MechStateBit.ESTOP)):
-            self.post_idle()
+            self.post_idle(ButtonState.IDLE)
 
       def cmd_estop_reset(self):
          result = self.dog.estop_reset()
          if (not(self.dog.get_state() & MechStateBit.ESTOP)):
-            self.post_idle()
+            self.post_idle(ButtonState.IDLE)
 
    def close(self):
       logging.info("Mech thread closing...")
@@ -246,7 +278,7 @@ class Gui(tkinter.Tk):
       while (not self.guiq.empty()):
          e = self.guiq.get()
          if (e['id'] == GuiEvent.MECH_IDLE):
-            self.set_idle_state(tkinter.ACTIVE)
+            self.set_idle_state(e['bstate'])
          elif (e['id'] == GuiEvent.LOG_MSG):
             self.display_logger_message(e)
          elif (e['id'] == GuiEvent.MECH_POSITION):
@@ -271,24 +303,28 @@ class Gui(tkinter.Tk):
    def create_widgets(self):
       self.grid()
       grow=0
-      self.x_val = tkinter.Button(self, relief=tkinter.SUNKEN, command=lambda: self.axis_button(AxisSel.X))
-      self.x_val.grid(row=grow, column=0, sticky='w')
+      self.x_val = tkinter.Label(self, relief=tkinter.GROOVE)
+      self.x_val.grid(row=grow, column=0, sticky='ew')
+      self.x_val.bind("<Button-1>", lambda event: self.axis_button(AxisSel.X))
 
       grow += 1
-      self.y_val = tkinter.Button(self, relief=tkinter.FLAT, command=lambda: self.axis_button(AxisSel.Y))
-      self.y_val.grid(row=grow, column=0, sticky='w')
+      self.y_val = tkinter.Label(self)
+      self.y_val.grid(row=grow, column=0, sticky='ew')
+      self.y_val.bind("<Button-1>", lambda event: self.axis_button(AxisSel.Y))
 
       grow += 1
-      self.z_val = tkinter.Button(self, relief=tkinter.FLAT, command=lambda: self.axis_button(AxisSel.Z))
-      self.z_val.grid(row=grow, column=0, sticky='w')
+      self.z_val = tkinter.Label(self)
+      self.z_val.grid(row=grow, column=0, sticky='ew')
+      self.z_val.bind("<Button-1>", lambda event: self.axis_button(AxisSel.Z))
 
       grow += 1
-      self.a_val = tkinter.Button(self, relief=tkinter.FLAT, command=lambda: self.axis_button(AxisSel.A))
-      self.a_val.grid(row=grow, column=0, sticky='w')
+      self.a_val = tkinter.Label(self)
+      self.a_val.grid(row=grow, column=0, sticky='ew')
+      self.a_val.bind("<Button-1>", lambda event: self.axis_button(AxisSel.A))
 
       grow += 1
       self.estop_button = tkinter.Button(self, text="EStop", command=self.toggle_estop)
-      self.estop_button.grid(row=grow, column=3, sticky='news')
+      self.estop_button.grid(row=grow, column=3, columnspan=2, sticky='news')
 
       self.home_button = tkinter.Button(self, text="All Zero", command=self.set_all_zero)
       self.home_button.grid(row=grow, column=0, sticky='news')
@@ -300,23 +336,23 @@ class Gui(tkinter.Tk):
       self.jogpos_button.grid(row=grow, column=2, sticky='news')
 
       self.resume_button = tkinter.Button(self, text="Resume", command=self.resume)
-      self.resume_button.grid(row=grow, column=4, sticky='news')
+      self.resume_button.grid(row=grow, column=5, sticky='news')
 
       grow = 1
       self.status_button = tkinter.Label(self, text="status")
-      self.status_button.grid(row=grow, column=3, sticky='e')
+      self.status_button.grid(row=grow, column=4, sticky='e')
       self.led_button = tkinter.Label(self, image=self.green_led)
-      self.led_button.grid(row=grow, column=4, sticky='w')
+      self.led_button.grid(row=grow, column=5, sticky='w')
 
       panelrow = 17
       lastrow = panelrow
       self.log_panel = tkinter.Text(self, state=tkinter.DISABLED, width=80, height=Panel.MAX_LINE, wrap=tkinter.NONE,
                                     bg=self.x_val['bg'], relief=tkinter.SUNKEN, borderwidth=4)
-      self.log_panel.grid(row=lastrow, columnspan=5, sticky='news')
+      self.log_panel.grid(row=lastrow, columnspan=6, sticky='news')
 
       lastrow += 1
       self.status_line_num = tkinter.Label(self)
-      self.status_line_num.grid(row=lastrow, column=4, sticky='w')
+      self.status_line_num.grid(row=lastrow, column=5, sticky='w')
 
       # Pipe log messages to Text widget.
       self.create_logger(self.guiq)
@@ -334,7 +370,7 @@ class Gui(tkinter.Tk):
       self.speed_entry.grid(row=grow, column=2, sticky='w')
 
       grow += 1
-      self.inc_button = tkinter.Button(self, text="Incremental Jog (%s)" % (self.units), relief=tkinter.SUNKEN,
+      self.inc_button = tkinter.Button(self, text="Incremental Jog (%s)" % (self.units),
                                        command=lambda: self.jog_type_button(JogTypeSel.INC))
       self.inc_button.grid(row=grow, column=1, sticky='e')
       self.inc_val = tkinter.StringVar()
@@ -343,12 +379,12 @@ class Gui(tkinter.Tk):
       self.inc_entry.grid(row=grow, column=2, sticky='w')
 
       grow += 1
-      self.abs_button1 = tkinter.Button(self, text="Absolute Jog (%s)" % (self.units), relief=tkinter.FLAT,
+      self.abs_button = tkinter.Button(self, text="Absolute Jog (%s)" % (self.units),
                                         command=lambda: self.jog_type_button(JogTypeSel.ABS))
-      self.abs_button1.grid(row=grow, column=1, sticky='e')
+      self.abs_button.grid(row=grow, column=1, sticky='e')
       self.abs_val = tkinter.StringVar()
       self.abs_val.set(self.get_ini("DISPLAY", "ABS_JOG", default="1"))
-      self.abs_entry = tkinter.Entry(self, textvariable=self.abs_val)
+      self.abs_entry = tkinter.Entry(self, textvariable=self.abs_val, state=tkinter.DISABLED)
       self.abs_entry.grid(row=grow, column=2, sticky='w')
 
       grow = 5
@@ -358,7 +394,7 @@ class Gui(tkinter.Tk):
       self.mdi_val1 = tkinter.StringVar()
       self.mdi_val1.set(self.get_ini("DISPLAY", "MDI_CMD_1", default=""))
       self.mdi_entry1 = tkinter.Entry(self, textvariable=self.mdi_val1)
-      self.mdi_entry1.grid(row=grow, column=1, columnspan=4, sticky='ew')
+      self.mdi_entry1.grid(row=grow, column=1, columnspan=5, sticky='ew')
 
       grow += 1
       self.mdi_button2 = tkinter.Button(self, text=self.get_ini("DISPLAY", "MDI_LABEL_2", default="MDI-2"),
@@ -367,7 +403,7 @@ class Gui(tkinter.Tk):
       self.mdi_val2 = tkinter.StringVar()
       self.mdi_val2.set(self.get_ini("DISPLAY", "MDI_CMD_2", default=""))
       self.mdi_entry2 = tkinter.Entry(self, textvariable=self.mdi_val2)
-      self.mdi_entry2.grid(row=grow, column=1, columnspan=4, sticky='ew')
+      self.mdi_entry2.grid(row=grow, column=1, columnspan=5, sticky='ew')
 
       grow += 1
       self.mdi_button3 = tkinter.Button(self, text=self.get_ini("DISPLAY", "MDI_LABEL_3", default="MDI-3"),
@@ -376,7 +412,7 @@ class Gui(tkinter.Tk):
       self.mdi_val3 = tkinter.StringVar()
       self.mdi_val3.set(self.get_ini("DISPLAY", "MDI_CMD_3", default=""))
       self.mdi_entry3 = tkinter.Entry(self, textvariable=self.mdi_val3)
-      self.mdi_entry3.grid(row=grow, column=1, columnspan=4, sticky='ew')
+      self.mdi_entry3.grid(row=grow, column=1, columnspan=5, sticky='ew')
 
       grow += 1
       self.mdi_button4 = tkinter.Button(self, text=self.get_ini("DISPLAY", "MDI_LABEL_4", default="MDI-4"),
@@ -385,16 +421,7 @@ class Gui(tkinter.Tk):
       self.mdi_val4 = tkinter.StringVar()
       self.mdi_val4.set(self.get_ini("DISPLAY", "MDI_CMD_4", default=""))
       self.mdi_entry4 = tkinter.Entry(self, textvariable=self.mdi_val4)
-      self.mdi_entry4.grid(row=grow, column=1, columnspan=4, sticky='ew')
-
-      grow += 1
-      self.mdi_button5 = tkinter.Button(self, text=self.get_ini("DISPLAY", "MDI_LABEL_5", default="MDI-5"),
-                                        command=lambda: self.mdi(self.mdi_val5))
-      self.mdi_button5.grid(row=grow, column=0, sticky='news')
-      self.mdi_val5 = tkinter.StringVar()
-      self.mdi_val5.set(self.get_ini("DISPLAY", "MDI_CMD_5", default=""))
-      self.mdi_entry5 = tkinter.Entry(self, textvariable=self.mdi_val5)
-      self.mdi_entry5.grid(row=grow, column=1, columnspan=4, sticky='ew')
+      self.mdi_entry4.grid(row=grow, column=1, columnspan=5, sticky='ew')
 
       grow += 1
       self.auto_button = tkinter.Button(self, text="Auto", command=lambda: self.auto(AutoSel.OPEN))
@@ -405,38 +432,40 @@ class Gui(tkinter.Tk):
       self.auto_entry.grid(row=grow, column=1, columnspan=3, sticky='ew')
       self.run_button = tkinter.Button(self, text="Run", command=lambda: self.auto(AutoSel.RUN))
       self.run_button.grid(row=grow, column=4, sticky='news')
+      self.verify_button = tkinter.Button(self, text="Verify", command=lambda: self.auto(AutoSel.VERIFY))
+      self.verify_button.grid(row=grow, column=5, sticky='news')
 
       grow += 1
-      self.plot_3d_button = tkinter.Button(self, text="3D", command=lambda: self.bp3d.plot_3d())
-      self.plot_3d_button.grid(row=grow, column=0, sticky='news')
+      backrow = grow
       self.backplot_canvas = tkinter.Canvas(self, relief=tkinter.SUNKEN, borderwidth=4)
-      self.backplot_canvas.grid(row=grow, rowspan=6, column=1, columnspan=4, sticky='ew')
-      grow += 1
-      self.plot_xy_button = tkinter.Button(self, text="X - Y", command=lambda: self.bp3d.plot_xy())
-      self.plot_xy_button.grid(row=grow, column=0, sticky='news')
-      grow += 1
-      self.plot_xz_button = tkinter.Button(self, text="X - Z", command=lambda: self.bp3d.plot_xz())
-      self.plot_xz_button.grid(row=grow, column=0, sticky='news')
-      grow += 1
-      self.plot_yz_button = tkinter.Button(self, text="Y - Z", command=lambda: self.bp3d.plot_yz())
-      self.plot_yz_button.grid(row=grow, column=0, sticky='news')
+      self.backplot_canvas.grid(row=grow, column=0, columnspan=6, sticky='news')
+
       grow += 1
       self.zoom_in_button = tkinter.Button(self, text="Zoom In", command=lambda: self.bp3d.zoom_in())
       self.zoom_in_button.grid(row=grow, column=0, sticky='news')
-      grow += 1
       self.zoom_out_button = tkinter.Button(self, text="Zoom Out", command=lambda: self.bp3d.zoom_out())
-      self.zoom_out_button.grid(row=grow, column=0, sticky='news')
+      self.zoom_out_button.grid(row=grow, column=1, sticky='news')
+      self.plot_3d_button = tkinter.Button(self, text="3D", command=lambda: self.bp3d.plot_3d())
+      self.plot_3d_button.grid(row=grow, column=2, sticky='news')
+      self.plot_xy_button = tkinter.Button(self, text="X - Y", command=lambda: self.bp3d.plot_xy())
+      self.plot_xy_button.grid(row=grow, column=3, sticky='news')
+      self.plot_xz_button = tkinter.Button(self, text="X - Z", command=lambda: self.bp3d.plot_xz())
+      self.plot_xz_button.grid(row=grow, column=4, sticky='news')
+      self.plot_yz_button = tkinter.Button(self, text="Y - Z", command=lambda: self.bp3d.plot_yz())
+      self.plot_yz_button.grid(row=grow, column=5, sticky='news')
+
 
       #grow += 1
 
       self.columnconfigure(1, weight=1)
       self.columnconfigure(2, weight=1)
+      self.rowconfigure(backrow, weight=1)
       self.rowconfigure(panelrow, weight=1)
 
    #=======================================================================
    def axis_button(self, id):
       if (id == AxisSel.X):
-         self.x_val.config(relief=tkinter.SUNKEN)
+         self.x_val.config(relief=tkinter.GROOVE)
          self.y_val.config(relief=tkinter.FLAT)
          self.z_val.config(relief=tkinter.FLAT)
          self.a_val.config(relief=tkinter.FLAT)
@@ -444,7 +473,7 @@ class Gui(tkinter.Tk):
          self.jogpos_button.config(text="Jog X +")
       elif (id == AxisSel.Y):
          self.x_val.config(relief=tkinter.FLAT)
-         self.y_val.config(relief=tkinter.SUNKEN)
+         self.y_val.config(relief=tkinter.GROOVE)
          self.z_val.config(relief=tkinter.FLAT)
          self.a_val.config(relief=tkinter.FLAT)
          self.jogneg_button.config(text="Jog Y -")
@@ -452,7 +481,7 @@ class Gui(tkinter.Tk):
       elif (id == AxisSel.Z):
          self.x_val.config(relief=tkinter.FLAT)
          self.y_val.config(relief=tkinter.FLAT)
-         self.z_val.config(relief=tkinter.SUNKEN)
+         self.z_val.config(relief=tkinter.GROOVE)
          self.a_val.config(relief=tkinter.FLAT)
          self.jogneg_button.config(text="Jog Z -")
          self.jogpos_button.config(text="Jog Z +")
@@ -460,7 +489,7 @@ class Gui(tkinter.Tk):
          self.x_val.config(relief=tkinter.FLAT)
          self.y_val.config(relief=tkinter.FLAT)
          self.z_val.config(relief=tkinter.FLAT)
-         self.a_val.config(relief=tkinter.SUNKEN)
+         self.a_val.config(relief=tkinter.GROOVE)
          self.jogneg_button.config(text="Jog A -")
          self.jogpos_button.config(text="Jog A +")
       self.sel_axis = id
@@ -468,11 +497,11 @@ class Gui(tkinter.Tk):
    #=======================================================================
    def jog_type_button(self, id):
       if (id == JogTypeSel.INC):
-         self.inc_button.config(relief=tkinter.SUNKEN)
-         self.abs_button1.config(relief=tkinter.FLAT)
+         self.inc_entry.config(state=tkinter.NORMAL)
+         self.abs_entry.config(state=tkinter.DISABLED)
       else:
-         self.inc_button.config(relief=tkinter.FLAT)
-         self.abs_button1.config(relief=tkinter.SUNKEN)
+         self.inc_entry.config(state=tkinter.DISABLED)
+         self.abs_entry.config(state=tkinter.NORMAL)
       self.sel_jog_type = id
 
    #=======================================================================
@@ -516,18 +545,52 @@ class Gui(tkinter.Tk):
       self.log_panel['state'] = 'disabled'
 
    #=======================================================================
-   def set_idle_state(self, flag, resume=tkinter.DISABLED, estop=tkinter.ACTIVE):
-      self.estop_button.config(state=estop)
-      self.home_button.config(state=flag)
-      self.jogneg_button.config(state=flag)
-      self.jogpos_button.config(state=flag)
-      self.run_button.config(state=flag)
-      self.mdi_button1.config(state=flag)
-      self.mdi_button2.config(state=flag)
-      self.mdi_button3.config(state=flag)
-      self.mdi_button4.config(state=flag)
-      self.mdi_button5.config(state=flag)
-      self.resume_button.config(state=resume)
+   def set_idle_state(self, flag):
+
+      if (flag[0]):
+         self.estop_button.config(state=tkinter.ACTIVE)
+      else:
+         self.estop_button.config(state=tkinter.DISABLED)
+
+      if (flag[1]):
+         self.home_button.config(state=tkinter.ACTIVE)
+      else:
+         self.home_button.config(state=tkinter.DISABLED)
+
+      if (flag[2]):
+         self.jogneg_button.config(state=tkinter.ACTIVE)
+         self.jogpos_button.config(state=tkinter.ACTIVE)
+      else:
+         self.jogneg_button.config(state=tkinter.DISABLED)
+         self.jogpos_button.config(state=tkinter.DISABLED)
+
+      if (flag[3]):
+         self.run_button.config(state=tkinter.ACTIVE)
+      else:
+         self.run_button.config(state=tkinter.DISABLED)
+
+      if (flag[4]):
+         self.mdi_button1.config(state=tkinter.ACTIVE)
+         self.mdi_button2.config(state=tkinter.ACTIVE)
+         self.mdi_button3.config(state=tkinter.ACTIVE)
+         self.mdi_button4.config(state=tkinter.ACTIVE)
+      else:
+         self.mdi_button1.config(state=tkinter.DISABLED)
+         self.mdi_button2.config(state=tkinter.DISABLED)
+         self.mdi_button3.config(state=tkinter.DISABLED)
+         self.mdi_button4.config(state=tkinter.DISABLED)
+
+      if (flag[5]):
+         self.resume_button.config(state=tkinter.ACTIVE)
+      else:
+         self.resume_button.config(state=tkinter.DISABLED)
+
+      if (flag[6] == 1):
+         self.verify_button.config(state=tkinter.ACTIVE, text='Verify')
+      elif (flag[6] == 2):
+         self.verify_button.config(state=tkinter.ACTIVE, text='Cancel')
+      else:
+         self.verify_button.config(state=tkinter.DISABLED, text='Verify')
 
       if (self.dog.get_state() & MechStateBit.ESTOP):
          self.led_button.config(image=self.red_led)
@@ -552,7 +615,7 @@ class Gui(tkinter.Tk):
       if (not self.safety_check_ok()):
          return
 
-      self.set_idle_state(tkinter.DISABLED)
+      self.set_idle_state(ButtonState.BUSY)
       m = {}
       m['id'] = MechEvent.CMD_MDI
 
@@ -586,7 +649,7 @@ class Gui(tkinter.Tk):
       if (not self.safety_check_ok()):
          return
 
-      self.set_idle_state(tkinter.DISABLED)
+      self.set_idle_state(ButtonState.BUSY)
       m = {}
       m['id'] = MechEvent.CMD_MDI
       m['cmd'] = id.get()
@@ -594,14 +657,14 @@ class Gui(tkinter.Tk):
 
    #=======================================================================
    def set_all_zero(self):
-      self.set_idle_state(tkinter.DISABLED)
+      self.set_idle_state(ButtonState.BUSY)
       m = {}
       m['id'] = MechEvent.CMD_ALL_ZERO
       self.mechq.put(m)
 
    #=======================================================================
    def toggle_estop(self):
-      self.set_idle_state(tkinter.DISABLED, estop=tkinter.DISABLED)    # disable (block) estop button during a estop
+      self.set_idle_state(ButtonState.BUSY2)    # disable (block) estop button during a estop
       if (self.dog.get_state() & MechStateBit.ESTOP):
          m = {}
          m['id'] = MechEvent.CMD_ESTOP_RESET
@@ -612,9 +675,9 @@ class Gui(tkinter.Tk):
    #=======================================================================
    def set_estop_state(self):
       if (self.dog.get_state() & MechStateBit.ESTOP):
-         self.set_idle_state(tkinter.DISABLED)
+         self.set_idle_state(ButtonState.ESTOP)
       else:
-         self.set_idle_state(tkinter.ACTIVE)
+         self.set_idle_state(ButtonState.IDLE)
 
    #=======================================================================
    def safety_check_ok(self):
@@ -630,7 +693,7 @@ class Gui(tkinter.Tk):
 
    #=======================================================================
    def resume(self):
-      self.set_idle_state(tkinter.DISABLED)
+      self.set_idle_state(ButtonState.BUSY)
       m = {}
       m['id'] = MechEvent.CMD_RUN
       m['file'] = "paused"
@@ -677,11 +740,11 @@ class Gui(tkinter.Tk):
    #=======================================================================
    def auto(self, id):
       if (id == AutoSel.OPEN):
-         gcodefile = str(filedialog.askopenfilename(parent=self, title="Open Gcode File"))
-         if (gcodefile != ''):
+         gcodefile = filedialog.askopenfilename(parent=self, title="Open Gcode File")
+         if (len(gcodefile) != 0):
             self.auto_val.set(gcodefile)
             self.display_max_line(gcodefile)
-      else:
+      elif (id == AutoSel.RUN):
          gcodefile = self.auto_val.get()
          if (gcodefile == ''):
             return
@@ -689,12 +752,26 @@ class Gui(tkinter.Tk):
             return
 
          self.display_max_line(gcodefile)
-         self.set_idle_state(tkinter.DISABLED)
+         self.set_idle_state(ButtonState.BUSY)
          m = {}
          m['id'] = MechEvent.CMD_RUN
          m['file'] = gcodefile
          self.mechq.put(m)
          self.bp3d.clear_plot()
+      else:
+         gcodefile = self.auto_val.get()
+         if (gcodefile == ''):
+            return
+         if (self.dog.get_state() & MechStateBit.VERIFY):
+            self.dog.verify_cancel()
+         else:
+            self.display_max_line(gcodefile)
+            self.set_idle_state(ButtonState.VERIFY)
+            m = {}
+            m['id'] = MechEvent.CMD_VERIFY
+            m['file'] = gcodefile
+            self.mechq.put(m)
+            self.bp3d.clear_plot()
 
    #=======================================================================
    def create_logger(self, panel):

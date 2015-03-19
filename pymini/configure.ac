@@ -75,8 +75,10 @@
 # Version 0.39, des 02/24/2015    Added Arduino Uno support for IO via plugins.
 # Version 0.41, des 03/01/2015    Initial backplot works.
 # Version 0.60, des 03/04/2015    Added A axis support. 
+# Version 0.64, des 03/15/2015    Added Verify support.
+# Version 0.65, des 03/16/2015    Made Mac OSX compatable gui changes.
 
-AC_INIT([pymini], [0.61])
+AC_INIT([pymini], [0.66])
 AC_CANONICAL_HOST
 
 # Checks for programs.

@@ -224,8 +224,11 @@ static enum EMC_RESULT _dsp_interp_cmd(struct emc_session *ps, emc_command_msg_t
       /* Wait for current IO to finish. */
       dsp_wait_io_done(ps);
 
-      /* Post final line number for gui. */
-      emc_post_position_cb(id, ps->position); 
+      if ((ps->state_bits & EMC_STATE_ESTOP_BIT) == 0)
+      {
+         /* Post final line number for gui. */
+         emc_post_position_cb(id, ps->position); 
+      }
 
       stat = EMC_R_OK;
       break;
@@ -238,6 +241,64 @@ static enum EMC_RESULT _dsp_interp_cmd(struct emc_session *ps, emc_command_msg_t
 bugout:
    return stat;
 }   /* _dsp_interp_cmd() */
+
+static enum EMC_RESULT _dsp_interp_verify(struct emc_session *ps, emc_command_msg_t *cmd, int id)
+{
+   enum EMC_RESULT stat = EMC_R_ERROR;
+
+   DBG("_dsp_interp_verify() cmd=%s\n", lookup_message(cmd->msg.type));
+
+   switch (cmd->msg.type)
+   {
+   case EMC_TRAJ_LINEAR_MOVE_TYPE:
+      {
+         emc_traj_linear_move_msg_t *p = (emc_traj_linear_move_msg_t *)cmd;
+         emc_post_position_cb(id, p->end);
+         stat = EMC_R_OK;
+      }
+      break;
+   case EMC_TRAJ_CIRCULAR_MOVE_TYPE:
+      {
+         emc_traj_circular_move_msg_t *p = (emc_traj_circular_move_msg_t *)cmd;
+         emc_post_position_cb(id, p->end);
+         stat = EMC_R_OK;
+      }
+      break;
+   case EMC_TASK_PLAN_PAUSE_TYPE:
+      {
+         stat = EMC_R_OK;
+      }
+      break;
+   case EMC_TRAJ_SET_TERM_COND_TYPE:
+      {
+         stat = EMC_R_OK;
+      }
+      break;
+   case EMC_TRAJ_DELAY_TYPE:
+      {
+         stat = EMC_R_OK;
+      }
+      break;
+   case EMC_SYSTEM_CMD_TYPE:
+      {
+         stat = EMC_R_OK;
+      }
+      break;
+   case EMC_TASK_PLAN_END_TYPE:
+      FINISH();    /* M2 or M30 */
+      /* Post final line number for gui. */
+      emc_post_position_cb(id, ps->position); 
+
+      stat = EMC_R_OK;
+      break;
+   default:
+      BUG("unknown command type=%d cmd=%s\n", cmd->msg.type, lookup_message(cmd->msg.type));
+      stat = EMC_R_OK; // don't consider this an error
+      break;
+   }
+
+   return stat;
+}   /* _dsp_interp_verify() */
 
 enum EMC_RESULT dsp_mdi(struct emc_session *ps, const char *mdi)
 {
@@ -349,6 +410,76 @@ bugout:
       fclose(ps->gfile);
    return stat;
 }       /* dsp_auto() */
+
+enum EMC_RESULT dsp_verify(struct emc_session *ps, const char *gcodefile)
+{
+   enum EMC_RESULT stat;
+   int retval, len;
+   char line[LINELEN];
+
+   ps->state_bits |= EMC_STATE_VERIFY_BIT;
+
+   DBG("dsp_verify() file=%s\n", gcodefile); 
+
+   if((ps->gfile = fopen(gcodefile, "r")) == NULL) 
+   {
+      BUG("unable to open %s\n", gcodefile);
+      stat = EMC_R_INVALID_GCODE_FILE;
+      goto bugout;
+   } 
+   ps->line_number=1;
+
+   /* Read, interpret and execute each line in the gcode file */
+   while ((fgets(line, sizeof(line), ps->gfile) != NULL))
+   {
+      retval = interp.execute(line, ps->line_number);
+      if (retval > INTERP_MIN_ERROR)
+      {
+         _interp_error(retval);
+         stat = EMC_R_INTERPRETER_ERROR;
+         goto bugout;
+      }
+      else
+      {
+         len = interp_list.len();
+         while (len)
+         {
+            if (!(ps->state_bits & EMC_STATE_VERIFY_BIT))
+            {
+               emc_post_position_cb(ps->line_number, ps->position);    /* user cancel */
+               goto bugout;               
+            }
+
+            if ((stat = _dsp_interp_verify(ps, interp_list.get(), ps->line_number)) != EMC_R_OK)
+            {
+               stat = EMC_R_ERROR;
+               goto bugout;
+            }
+
+            /* Do small delay so we don't overrun the gui with position updates. */
+            esleep(0.02);
+
+            len--;
+         }
+      }
+      ps->line_number++;
+   }
+
+   stat = EMC_R_OK;
+
+bugout:
+   ps->state_bits &= ~EMC_STATE_VERIFY_BIT;
+   if (ps->gfile != NULL)
+      fclose(ps->gfile);
+   return stat;
+}       /* dsp_verify() */
+
+enum EMC_RESULT dsp_verify_cancel(struct emc_session *ps)
+{
+   ps->state_bits &= ~EMC_STATE_VERIFY_BIT;
+   MSG("User cancel...\n");
+   return EMC_R_OK;
+}
 
 enum EMC_RESULT dsp_estop(struct emc_session *ps)
 {

@@ -56,6 +56,7 @@ class MechStateBit(object):
    ESTOP = 0x10000
    PAUSED = 0x20000
    HOMED = 0x40000
+   VERIFY = 0x80000
 
 class EmcPose(Structure):
    _fields_ = [("x", c_double),
@@ -173,6 +174,16 @@ class EmcMech(object):
          self._enable_din_abort.argtypes = [c_void_p, c_int]
          self._enable_din_abort.restype= c_int
 
+         # enum EMC_RESULT emc_ui_verify_cmd(void *hd, const char *gcodefile)
+         self._verify_cmd = self.lib.emc_ui_verify_cmd
+         self._verify_cmd.argtypes = [c_void_p, c_char_p]
+         self._verify_cmd.restype = c_int
+
+         # enum EMC_RESULT dsp_verify_cancel(struct emc_session *ps);
+         self._verify_cancel = self.lib.emc_ui_verify_cancel
+         self._verify_cancel.argtypes = [c_void_p]
+         self._verify_cancel.restype= c_int
+
       except AttributeError as err:
          logging.info("unable to load library: %s %s" % (self.LIBRARY_FILE, err))
 
@@ -209,11 +220,19 @@ class EmcMech(object):
 
    #############################################################################################################
    def mdi_cmd(self, cmd):
-      return self._mdi_cmd(self.hd, cmd)
+      return self._mdi_cmd(self.hd, cmd.encode('ascii'))
 
    #############################################################################################################
    def auto_cmd(self, gcodefile):
-      return self._auto_cmd(self.hd, gcodefile)
+      return self._auto_cmd(self.hd, gcodefile.encode('ascii'))
+
+   #############################################################################################################
+   def verify_cmd(self, gcodefile):
+      return self._verify_cmd(self.hd, gcodefile.encode('ascii'))
+
+   #############################################################################################################
+   def verify_cancel(self):
+      return self._verify_cancel(self.hd)
 
    #############################################################################################################
    def wait_io_done(self):

@@ -108,7 +108,7 @@ struct emc_axis
  * +---------------------------------------v---------------------------------------+
  * | 31 | 30 | 29 | 28 | 27 | 26 | 25 | 24 | 23 | 22 | 21 | 20 | 19 | 18 | 17 | 16 |
  * ----------------------------------------^---------------------------------------+
- * |    |    |    |    |    |    |    |    |    |    |    |    |    |HOME|PAUS|ESTP|
+ * |    |    |    |    |    |    |    |    |    |    |    |    |VERF|HOME|PAUS|ESTP|
  * +---------------------------------------v---------------------------------------+
  * | 15 | 14 | 13 | 12 | 11 | 10 |  9 |  8 |  7 |  6 |  5 |  4 |  3 |  2 |  1 |  0 |
  * ----------------------------------------^---------------------------------------+
@@ -119,6 +119,7 @@ struct emc_axis
  *   ESTP = ESTOP (1=True, 0=False)
  *   PAUS = PROGRAM_PAUSED (1=True, 0=False)
  *   HOME = HOMED (1=True, 0=False)
+ *   VERF = VERIFY (1=True, 0=False)
  *   ABRT = RTSTEPPER_ABORT (1=True, 0=False)
  *   EMPT = RTSTEPPER_EMPTY (1=True, 0=False)
  *   STAL = RTSTEPPER_STALL (1=True, 0=False)
@@ -130,6 +131,7 @@ struct emc_axis
 #define EMC_STATE_ESTOP_BIT 0x010000
 #define EMC_STATE_PAUSED_BIT 0x020000
 #define EMC_STATE_HOMED_BIT 0x040000
+#define EMC_STATE_VERIFY_BIT 0x080000
 
 /* size of motion queue, a TC_STRUCT is about 512 bytes so this queue is about a megabyte.  */
 #define DEFAULT_TC_QUEUE_SIZE 2000
@@ -365,6 +367,8 @@ extern "C"
    DLL_EXPORT enum EMC_RESULT emc_ui_auto_cmd(void *hd, const char *gcode_file);
    DLL_EXPORT enum EMC_RESULT emc_ui_enable_din_abort(void *hd, int input_num);
    DLL_EXPORT enum EMC_RESULT emc_ui_disable_din_abort(void *hd, int input_num);
+   DLL_EXPORT enum EMC_RESULT emc_ui_verify_cmd(void *hd, const char *gcode_file);
+   DLL_EXPORT enum EMC_RESULT emc_ui_verify_cancel(void *hd);
 
    enum EMC_RESULT dsp_open(struct emc_session *ps);
    enum EMC_RESULT dsp_close(struct emc_session *ps);
@@ -376,6 +380,8 @@ extern "C"
    enum EMC_RESULT dsp_home(struct emc_session *ps);
    enum EMC_RESULT dsp_enable_din_abort(struct emc_session *ps, int num);
    enum EMC_RESULT dsp_disable_din_abort(struct emc_session *ps, int num);
+   enum EMC_RESULT dsp_verify(struct emc_session *ps, const char *gcodefile);
+   enum EMC_RESULT dsp_verify_cancel(struct emc_session *ps);
    const char *lookup_task_interp_state(int type);
    const char *lookup_message(int type);
    void compute_screw_comp(struct emc_session *ps);

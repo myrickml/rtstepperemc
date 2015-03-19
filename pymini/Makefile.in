@@ -139,10 +139,10 @@ OBJ = $(addsuffix .o, $(basename $(dist_SOURCE))) $(RS274NGC_OBJ)
 all: $(DLL_NAME).$(DLL_EXTENSION) rt-test$(EXEEXT) pytest$(EXEEXT) version
 
 $(DLL_NAME).so: $(OBJ)
-	$(CXX) -shared -Wl,--no-undefined -o $@ $(OBJ) -L. $(LDFLAGS) $(LIBS) -lusb-1.0 -lpthread -lrt
+	$(CXX) -shared -Wl,--no-undefined -o $@ $(OBJ) -L. $(LDFLAGS) $(LIBS) -lusb-1.0 -lpthread
 
 $(DLL_NAME).dylib: $(OBJ)
-	$(CXX) -shared -Wl,-undefined,error -o $@ $(OBJ) -Wl,-headerpad_max_install_names -L. $(LDFLAGS) $(LIBS) -lpthread -lusb-1.0 -lrt
+	$(CXX) -shared -Wl,-undefined,error -o $@ $(OBJ) -Wl,-headerpad_max_install_names -L. $(LDFLAGS) $(LIBS) -lpthread -lusb-1.0
 
 rt-test: $(RTTEST_OBJ)
 	$(CC) -o $@ $(RTTEST_OBJ) -L. $(LDFLAGS) $(LIBS) -lusb-1.0

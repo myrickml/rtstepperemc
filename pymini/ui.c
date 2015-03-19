@@ -499,25 +499,38 @@ DLL_EXPORT enum EMC_RESULT emc_ui_mdi_cmd(void *hd, const char *mdi)
 {
    struct emc_session *ps = (struct emc_session *)hd;
    return dsp_mdi(ps, mdi);
-}       /* emc_ui_send_mdi_cmd() */
+}       /* emc_ui_mdi_cmd() */
 
 DLL_EXPORT enum EMC_RESULT emc_ui_auto_cmd(void *hd, const char *gcode_file)
 {
    struct emc_session *ps = (struct emc_session *)hd;
    return dsp_auto(ps, gcode_file);
-}       /* emc_ui_send_mdi_cmd() */
+}       /* emc_ui_auto_cmd() */
+
+DLL_EXPORT enum EMC_RESULT emc_ui_verify_cmd(void *hd, const char *gcode_file)
+{
+   struct emc_session *ps = (struct emc_session *)hd;
+   return dsp_verify(ps, gcode_file);
+}       /* emc_ui_verify_cmd() */
+
+DLL_EXPORT enum EMC_RESULT emc_ui_verify_cancel(void *hd)
+{
+   struct emc_session *ps = (struct emc_session *)hd;
+   DBG("emc_ui_verify_cancel() called\n");
+   return dsp_verify_cancel(ps);
+}       /* emc_ui_verify_cancel() */
 
 DLL_EXPORT enum EMC_RESULT emc_ui_enable_din_abort(void *hd, int input_num)
 {
    struct emc_session *ps = (struct emc_session *)hd;
    return dsp_enable_din_abort(ps, input_num);
-}       /*  emc_ui_enable_input_abort() */
+}       /*  emc_ui_enable_din_abort() */
 
 DLL_EXPORT enum EMC_RESULT emc_ui_disable_din_abort(void *hd, int input_num)
 {
    struct emc_session *ps = (struct emc_session *)hd;
    return dsp_disable_din_abort(ps, input_num);
-}       /*  emc_ui_disable_input_abort() */
+}       /*  emc_ui_disable_din_abort() */
 
 DLL_EXPORT void *emc_ui_open(const char *ini_file)
 {
