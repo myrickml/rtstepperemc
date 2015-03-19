@@ -21,22 +21,50 @@
 # Upstream patches are welcome. Any patches submitted to the author must be
 # unencumbered (ie: no Copyright or License).
 #
+# Notes:
+#
+# Arduino Uno - original board works ok and enumerates with VID/PID and Serial Number. VID=2341 PID=0001
+#
+# DCcduino Uno - clone board works ok and enumerates with VID/PID, but no Serial Number. VID=1a86 PID=7523
+#                Board enumerates as "QinHeng Electronics HL-340 USB-Serial adapter"
+#
+# For serial port permissions on Ubuntu the User must belong to 'dialout' group (adduser username dialout).
+#
+
 import serial
 import time
+from serial.tools import list_ports
 
-connected = False       # Set to True if using Arduino Uno for IO.
+#UNO_VID = "1a86"      # Set to USB Uno board vendor number
+#UNO_PID = "7523"      # Set to USB Uno board product number
+UNO_VID = "2341"       # Set to USB Uno board vendor number
+UNO_PID = "0001"       # Set to USB Uno board product number
+connected = False      # Set to True if using Arduino Uno for IO.
+
 inited = False         # usb serial port opened: False = no, True = yes
 uno = None             # serial port instance
+
+# Perform serial port auto discovery based on Arduino Uno board USB PID/VID.
+def get_device(vid, pid):
+   l = list_ports.comports()
+   for d, n, e in l:
+      if (e.find("USB VID:PID") == 0):
+         s = e.split(' ')
+         s = s[1].split('=')
+         s = s[1].split(':')
+         if (vid == s[0] and pid == s[1]):
+            return d   # found a match
+   raise Exception
 
 def init():
    global uno, inited, connected
    try:
-      dev = "/dev/ttyACM0"  # Ubuntu default serial port. User must belong to 'dialout' group (adduser username dialout).
+      dev = get_device(UNO_VID, UNO_PID)
       uno = serial.Serial(dev, baudrate=9600, timeout=1.0)
    except Exception as err:
-      print("unable to open Ardunio serial port: %s %s" % (dev, err))
+      print("unable to open Ardunio serial port: vid=%s pid=%s %s" % (UNO_VID, UNO_PID, err))
       connected = False
-      raise Exception
+      return
 
    # The board is reset when first open. Wait for board to initialize.
    print("Ardunio is reseting...")
@@ -66,3 +94,6 @@ def call_response(call):
    if(len(resp) <= 1):
       raise Exception
    return resp
+
+if __name__ == "__main__":
+   init()
