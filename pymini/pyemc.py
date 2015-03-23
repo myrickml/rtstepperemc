@@ -25,7 +25,7 @@
 #
 # 12/16/2014 - New
 
-import logging
+import os, sys, logging
 from ctypes import cdll, c_int, c_char_p, c_void_p, c_double, c_long, c_void_p, byref, cast, Structure, POINTER, CFUNCTYPE
 import imp
 from version import Version 
@@ -82,7 +82,7 @@ class EmcMech(object):
 
    def __init__(self):
       try:
-         self.LIBRARY_FILE = Version.dll
+         self.LIBRARY_FILE = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), Version.dll)
          self.lib = cdll.LoadLibrary(self.LIBRARY_FILE)
 
          # void *emc_ui_open(const char *ini_file)

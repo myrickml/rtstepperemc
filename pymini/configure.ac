@@ -78,7 +78,7 @@
 # Version 0.64, des 03/15/2015    Added Verify support.
 # Version 0.65, des 03/16/2015    Made Mac OSX compatable gui changes.
 
-AC_INIT([pymini], [0.66])
+AC_INIT([pymini], [0.67])
 AC_CANONICAL_HOST
 
 # Checks for programs.

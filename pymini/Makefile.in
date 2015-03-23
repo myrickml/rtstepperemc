@@ -92,19 +92,19 @@ COPYING
 
 dist_noinst_SCRIPTS = \
 bootstrap configure.ac config.guess install-sh configure config.sub \
-green_led.svg red_led.svg orange_led.svg
+green_led.svg red_led.svg orange_led.svg create_led.py
 
 dist_noinst_DATA = \
 Makefile.in aclocal.m4
 
 dist_MINI_SCRIPTS = \
-pymini.py pyemc.py arduino.py backplot.py 
+pymini.py pyemc.py arduino.py backplot.py led.py
 
 dist_PLUGIN_SCRIPTS = \
 plugin/m190.py plugin/m3.py plugin/m4.py plugin/m5.py plugin/m6.py plugin/m7.py plugin/m8.py plugin/m9.py 
 
 dist_CONF_DATA = \
-rtstepper.ini green_led.gif red_led.gif orange_led.gif
+rtstepper.ini
 
 dist_DATA = \
 55-rt-stepper.rules $(dist_CONF_DATA) 
@@ -215,7 +215,7 @@ version:
 	echo "   name = '$(PACKAGE)'" >> version.py; \
 	echo "   date = '$$date'" >> version.py; \
 	echo "   release = '$(VERSION)'" >> version.py; \
-	echo "   dll = './$(DLL_NAME).$(DLL_EXTENSION)'" >> version.py; \
+	echo "   dll = '$(DLL_NAME).$(DLL_EXTENSION)'" >> version.py; \
 
 dist:
 	rm -fr $(PACKAGE)-$(VERSION)
@@ -235,6 +235,6 @@ gif:
 	convert -transparent white orange_led.svg orange_led.gif
 
 clean:	
-	rm -f *~ *.o rs274ngc/*~ rs274ngc/*.o plugin/*~
+	rm -f *~ *.o *.pyc rs274ngc/*~ rs274ngc/*.o plugin/*~ plugin/*.pyc
 
 .PHONY: dist uninstall install all clean version gif

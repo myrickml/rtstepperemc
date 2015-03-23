@@ -42,6 +42,7 @@ except ImportError:
 import time
 import pyemc
 import backplot
+import led
 from pyemc import MechStateBit
 from version import Version
 
@@ -244,9 +245,9 @@ class Gui(tkinter.Tk):
       self.mechq = queue.Queue()  # tkinter to Mech communication
       self.sel_axis = AxisSel.X  # set axis default
       self.sel_jog_type = JogTypeSel.INC  # set jog type default
-      self.green_led = tkinter.PhotoImage(file='green_led.gif')
-      self.red_led = tkinter.PhotoImage(file='red_led.gif')
-      self.orange_led = tkinter.PhotoImage(file='orange_led.gif')
+      self.green_led = tkinter.PhotoImage(data=led.GREEN)
+      self.red_led = tkinter.PhotoImage(data=led.RED)
+      self.orange_led = tkinter.PhotoImage(data=led.ORANGE)
       self._update()  # kickoff _update()
       self.create_widgets()
       self.auto_setup()
@@ -357,7 +358,9 @@ class Gui(tkinter.Tk):
       # Pipe log messages to Text widget.
       self.create_logger(self.guiq)
 
-      # Load persistent data from .ini for MDI buttons.
+      # Load persistent data from .ini for MDI buttons. Note, 'realpath' takes care of any symlink.
+      if (os.path.dirname(IniFile.name) == ""):
+         IniFile.name = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), IniFile.name)
       self.open(IniFile.name)
 
       grow = 0
