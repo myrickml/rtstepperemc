@@ -339,6 +339,48 @@ static void cancel_xfr(struct emc_session *ps)
    pthread_mutex_unlock(&_mutex);
 } /* cancel_xfr() */
 
+#if 0
+static int x_index;
+static int y_index;
+static int z_index;
+
+static void bitchk(int id, unsigned char *buf, int total)
+{
+//   static const unsigned int inc[8] = {0, -1, 0, 1, 0, 0, 0, 0};  /* high true */
+   static const unsigned int inc[8] = {0, 0, 0, 0, -1, 0, 1, 0};   /* low true */
+   int i,x=0,y=0,z=0;
+  
+   for (i=0; i<total; i++)
+   {
+      x = (x << 2) & 0x7;
+      if (buf[i] & 0x1)
+         x |= 1;
+      if (buf[i] & 0x2)
+         x |= 2;
+      x_index += inc[x];
+
+      y = (y << 2) & 0x7;
+      if (buf[i] & 0x4)
+         y |= 1;
+      if (buf[i] & 0x8)
+         y |= 2;
+      y_index += inc[y];
+
+      z = (z << 2) & 0x7;
+      if (buf[i] & 0x10)
+         z |= 1;
+      if (buf[i] & 0x20)
+         z |= 2;
+      z_index += inc[z];
+      //fprintf(stdout, " %d %x\n", id, buf[i]);
+   }
+   DBG("BITCHK l=%d x=%0.5f x_index=%d y=%0.5f y_index=%d z=%0.5f z_index=%d\n", id, 
+      1/32000.0 * x_index, x_index,
+      1/32000.0 * y_index, y_index,
+      1/32000.0 * z_index, z_index);   
+}
+#endif
+
 /* Libusb asynchronous transfer complete callback function. */
 static void xfr_cb(struct libusb_transfer *transfer)
 {
@@ -385,9 +427,19 @@ static void xfr_cb(struct libusb_transfer *transfer)
    }
    else
    {
-      /* Transfer is ok, save current position. */
-      ps->position = io->position;
-      emc_post_position_cb(io->id, io->position); 
+      if (transfer->actual_length != transfer->length)
+      {
+         BUG("usb transfer incomplete exp=%d act=%d\n", transfer->length, transfer->actual_length);
+         emc_post_estop_cb(ps);
+      }
+      else
+      {
+         //bitchk(io->id, io->buf, io->total);
+
+         /* Transfer is ok, save current position. */
+         ps->position = io->position;
+         emc_post_position_cb(io->id, io->position); 
+      }
    }
 
    pthread_mutex_lock(&_mutex);
@@ -478,6 +530,7 @@ enum EMC_RESULT rtstepper_start_xfr(struct emc_session *ps, struct rtstepper_io_
             else
                io->buf[ps->axis[i].clk_tail + j] &= ~pin_map[ps->axis[i].step_pin]; /* clear bit */
          }
+         ps->axis[i].clk_tail = 0;  /* reset */
       }
    }
 

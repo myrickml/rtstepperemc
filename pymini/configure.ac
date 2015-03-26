@@ -77,8 +77,9 @@
 # Version 0.60, des 03/04/2015    Added A axis support. 
 # Version 0.64, des 03/15/2015    Added Verify support.
 # Version 0.65, des 03/16/2015    Made Mac OSX compatable gui changes.
+# Version 0.69, des 03/25/2015    Added an icon. Fixed a step pulse bug in rtstepper_start_xfr().
 
-AC_INIT([pymini], [0.67])
+AC_INIT([pymini], [0.69])
 AC_CANONICAL_HOST
 
 # Checks for programs.

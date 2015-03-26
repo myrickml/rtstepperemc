@@ -836,6 +836,8 @@ for cmd, param in opt:
 app = Gui()
 
 app.title("%s v%s" % (app.cfg.get("EMC", "MACHINE"), Version.release))
+app.icon = tkinter.PhotoImage(data=led.ICON)
+app.tk.call('wm', 'iconphoto', app._w, app.icon)
 app.mainloop()
 app.close()
 

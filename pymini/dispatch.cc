@@ -129,7 +129,7 @@ static enum EMC_RESULT _dsp_interp_cmd(struct emc_session *ps, emc_command_msg_t
          /* Run trajectory planner. */
          _run_tp(ps, io);
 
-         DBG("line=%d x_pos=%0.8f, x_master=%d y_pos=%0.8f, y_master=%d z_pos=%0.8f, z_master=%d\n", id, 
+         DBG("L line=%d x_pos=%0.5f, x_master=%d y_pos=%0.5f, y_master=%d z_pos=%0.5f, z_master=%d\n", id, 
          p->end.tran.x, ps->axis[EMC_AXIS_X].master_index, 
          p->end.tran.y, ps->axis[EMC_AXIS_Y].master_index, 
          p->end.tran.z, ps->axis[EMC_AXIS_Z].master_index);
@@ -156,6 +156,11 @@ static enum EMC_RESULT _dsp_interp_cmd(struct emc_session *ps, emc_command_msg_t
 
          /* Run trajectory planner. */
          _run_tp(ps, io);
+
+         DBG("C line=%d x_pos=%0.5f, x_master=%d y_pos=%0.5f, y_master=%d z_pos=%0.5f, z_master=%d\n", id, 
+         p->end.tran.x, ps->axis[EMC_AXIS_X].master_index, 
+         p->end.tran.y, ps->axis[EMC_AXIS_Y].master_index, 
+         p->end.tran.z, ps->axis[EMC_AXIS_Z].master_index);
 
          /* Dispatch step buffer package to IO system. */
          if (rtstepper_start_xfr(ps, io, tpGetPos(&ps->tp_queue)) != EMC_R_OK)
