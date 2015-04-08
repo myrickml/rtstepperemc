@@ -34,6 +34,7 @@
 #include <ctype.h>
 #include <unistd.h>
 #include <errno.h>
+#include <pthread.h>    /* ETIMEDOUT */
 #include <sys/time.h>
 #include <libusb.h>
 
