@@ -99,6 +99,7 @@ extern "C"
    enum EMC_RESULT rtstepper_home(struct emc_session *ps);
    enum EMC_RESULT rtstepper_estop(struct emc_session *ps, int thread);
    struct rtstepper_io_req *rtstepper_alloc_io_req(struct emc_session *ps, int id);
+   enum EMC_RESULT rtstepper_test(const char *snum);
 #ifdef __cplusplus
 }
 #endif

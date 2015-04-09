@@ -1,5 +1,5 @@
 #!/usr/bin/python
-# pymini.py - A python GUI that interfaces with rtstepperemc library.
+# backplot.py - gcode ploting module. Used by pymini.py.
 #
 # (c) 2014-2015 Copyright Eckler Software
 #

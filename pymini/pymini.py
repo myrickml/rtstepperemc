@@ -53,7 +53,7 @@ pos_name = ["na", "x", "y", "z", "a"]  # AxisSel to GetPosition_Eng() map
 HOME_DIR = "%s/.%s" % (os.path.expanduser("~"), Version.name)
 
 class IniFile(object):
-   name = "rtstepper.ini"
+   name = Version.ini
 
 class Panel(object):
    MAX_LINE = 6
@@ -824,14 +824,15 @@ class Gui(tkinter.Tk):
 #==========================================================================
 try:
    opt, arg = getopt.getopt(sys.argv[1:], "i:h")
+   for cmd, param in opt:
+      if (cmd in ("-h", "--help")):
+         usage()
+         sys.exit()
+      if (cmd in ("-i")):
+         IniFile.name = param
 except:
-   pass
-for cmd, param in opt:
-   if (cmd in ("-h", "--help")):
-      usage()
-      sys.exit()
-   if (cmd in ("-i")):
-      IniFile.name = param
+   usage()
+   sys.exit()
 
 app = Gui()
 

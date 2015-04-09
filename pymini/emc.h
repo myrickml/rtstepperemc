@@ -369,6 +369,7 @@ extern "C"
    DLL_EXPORT enum EMC_RESULT emc_ui_disable_din_abort(void *hd, int input_num);
    DLL_EXPORT enum EMC_RESULT emc_ui_verify_cmd(void *hd, const char *gcode_file);
    DLL_EXPORT enum EMC_RESULT emc_ui_verify_cancel(void *hd);
+   DLL_EXPORT enum EMC_RESULT emc_ui_test(const char *snum);
 
    enum EMC_RESULT dsp_open(struct emc_session *ps);
    enum EMC_RESULT dsp_close(struct emc_session *ps);

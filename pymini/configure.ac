@@ -20,7 +20,7 @@
 #
 #     ./configure --host i586-mingw32msvc (Ubuntu 9.04)
 #     ./configure --host=i686-w64-mingw32 LDFLAGS="-L/usr/i686-w64-mingw32/lib" (Ubuntu 12.04 32-bit)
-#     ./configure --host=x86_64-w64-mingw32 LDFLAGS="-L/usr/x86_64-w64-mingw32/lib" (Ubuntu 12.04 64-bit)
+#     ./configure --host=x86_64-w64-mingw32 LDFLAGS="-L/usr/x86_64-w64-mingw32/lib" CFLAGS=-I/usr/x86_64-w64-mingw32/include/libusb-1.0 CXXFLAGS=-I/usr/x86_64-w64-mingw32/include/libusb-1.0 (Ubuntu 12.04 64-bit)
 #
 #     make
 #     make zip
@@ -78,8 +78,10 @@
 # Version 0.64, des 03/15/2015    Added Verify support.
 # Version 0.65, des 03/16/2015    Made Mac OSX compatable gui changes.
 # Version 0.69, des 03/25/2015    Added an icon. Fixed a step pulse bug in rtstepper_start_xfr().
+# Version 0.70, des 04/03/2015    Initial cx_freeze support.
+# Version 0.74, des 04/08/2015    Added binary support (dmg) for Mac OSX 10.9. 
 
-AC_INIT([pymini], [0.69])
+AC_INIT([pymini], [0.74])
 AC_CANONICAL_HOST
 
 # Checks for programs.
@@ -129,11 +131,7 @@ AC_CHECK_LIB([m], [pow],, [AC_MSG_ERROR([cannot find libm math support], 10)])
 # Checks for required development packages.
 AC_CHECK_HEADERS(pthread.h,, [AC_MSG_ERROR([cannot find libpthread-devel support], 11)])
 #AC_CHECK_HEADERS(curses.h,, [AC_MSG_ERROR([cannot find libcurses-devel support], 12)])
-if test "$mingw_build" = "yes"; then
-   AC_CHECK_HEADERS(usb-winusb.h,, [AC_MSG_ERROR([cannot find libusb-winusb support], 13)])
-else
-   AC_CHECK_HEADERS(libusb.h,, [AC_MSG_ERROR([cannot find libusb-devel 1.0 support], 13)])
-fi
+AC_CHECK_HEADERS(libusb.h,, [AC_MSG_ERROR([cannot find libusb-devel 1.0 support], 13)])
 
 AC_MSG_CHECKING(for host machine platform)
 machine=`uname -m`

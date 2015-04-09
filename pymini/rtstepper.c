@@ -35,6 +35,7 @@
 #include <pthread.h>
 #include <math.h>
 #include <unistd.h>
+#include <sys/time.h>
 #include "emc.h"
 #include "bug.h"
 
@@ -1069,3 +1070,172 @@ enum EMC_RESULT rtstepper_close(struct emc_session *ps)
 
    return stat;
 }       /* rtstepper_close() */
+
+/********************************************************************************************
+ * Dongle standalone test code. Uses synchronous USB IO. Called by rt-test.py.
+ ********************************************************************************************/
+
+#define TBUG(args...) fprintf(stderr, __FILE__ " " STRINGIZE(__LINE__) ": " args)
+
+static int bulk_write(struct rtstepper_file_descriptor *pfd, const void *buf, int size, int msec)
+{
+   int len=-EIO, r;
+
+   if (pfd->hd == NULL)
+   {
+      TBUG("invalid bulk_write state\n");
+      goto bugout;
+   }
+
+   r = libusb_bulk_transfer(pfd->hd, DONGLE_OUT_EP, (unsigned char *)buf, size, &len, msec);
+
+   if (r == LIBUSB_ERROR_TIMEOUT)
+   {
+      len = -ETIMEDOUT;
+      goto bugout;
+   }
+
+   if (r != 0)
+   {
+      TBUG("bulk_write failed len=%d: %s\n", len, libusb_error_name(r));
+      goto bugout;
+   }
+
+bugout:
+   return len;
+} /* musb_write() */
+
+static int open_test_device(struct rtstepper_file_descriptor *pfd, const char *sn)
+{
+   int stat = 1;
+   int i, n;
+   
+   libusb_init(&pfd->ctx);
+   libusb_set_debug(pfd->ctx, 3);
+   n = libusb_get_device_list(pfd->ctx, &pfd->list_all);
+
+   /* Look for rtstepper device(s). */
+   for (i=0; i < n; i++)
+   {
+      if (is_rt(pfd->list_all[i], sn))
+      {
+         pfd->dev = pfd->list_all[i];
+         if (claim_interface(pfd))
+            goto bugout;
+
+         stat = 0;
+         break;
+      }
+   }
+
+bugout:
+   return stat;
+}       /* open_device() */
+
+enum EMC_RESULT rtstepper_test(const char *snum)
+{
+   struct rtstepper_file_descriptor fd_table;        /* usb file descriptors */
+   struct step_elements elements;
+   struct step_query query_response;
+   char buf[65536];             /* for testing pick multiple 64-byte writes otherwise there could be a stall */
+   unsigned char toggle;
+   int i, ret = RTSTEPPER_R_DEVICE_UNAVAILABLE, len, tmo;
+
+   fd_table.hd = NULL;
+
+   /* Open first usb device or usb device matching specified serial number. */
+   if (open_test_device(&fd_table, snum) != 0)
+   {
+      if (snum[0])
+         TBUG("unable to find rtstepper dongle serial number: %s\n", snum);
+      else
+         TBUG("unable to find rtstepper dongle\n");
+      goto bugout;
+   }
+
+   /* Clear device state bits and running step count. */
+   len = libusb_control_transfer(fd_table.hd, LIBUSB_ENDPOINT_OUT | LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_INTERFACE,      /* bmRequestType */
+                         STEP_SET,      /* bRequest */
+                         0x0,   /* wValue */
+                         DONGLE_INTERFACE, /* wIndex */
+                         (unsigned char *) &elements, sizeof(elements), LIBUSB_CONTROL_REQ_TIMEOUT);
+
+   if (len != sizeof(elements))
+   {
+      TBUG("unable to initialize dongle len=%d: %s\n", len, libusb_error_name(len));
+      goto bugout;
+   }
+
+
+   /* Verify state. */
+   len = libusb_control_transfer(fd_table.hd, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_INTERFACE,      /* bmRequestType */
+                         STEP_QUERY,    /* bRequest */
+                         0x0,   /* wValue */
+                         DONGLE_INTERFACE, /* wIndex */
+                         (unsigned char *)&query_response, sizeof(query_response), LIBUSB_CONTROL_REQ_TIMEOUT);
+   if (len != sizeof(query_response))
+   {
+      TBUG("invalid query_response len=%d: %s\n", len, libusb_error_name(len));
+      goto bugout;
+   }
+
+   fprintf(stdout, "query_response (Begin) len=%d trip=%d state=%x steps=%d\n", len,
+           query_response.trip_cnt, query_response.state_bits._word, query_response.step);
+
+   toggle = 0x55;
+   for (i = 0; i < sizeof(buf); i++)
+   {
+      buf[i] = toggle;
+      toggle = ~toggle;
+   }
+
+   if ((len = bulk_write(&fd_table, buf, sizeof(buf), LIBUSB_TIMEOUT)) < 0)
+   {
+      TBUG("unable to write data len=%d snum=%s\n", len, snum);
+      goto bugout;
+   }
+   fprintf(stdout, "wrote %d bytes\n", len);
+
+   /* Wait for write to finish. */
+   tmo = (double) sizeof(buf) * 0.000021333;    /* timeout in seconds = steps * period */
+   tmo += 1;    /* plus 1 second */
+   sleep(tmo);
+
+   len = libusb_control_transfer(fd_table.hd, LIBUSB_ENDPOINT_IN | LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_RECIPIENT_INTERFACE,      /* bmRequestType */
+                         STEP_QUERY,    /* bRequest */
+                         0x0,   /* wValue */
+                         DONGLE_INTERFACE, /* wIndex */
+                         (unsigned char *)&query_response, sizeof(query_response), LIBUSB_CONTROL_REQ_TIMEOUT);
+   if (len != sizeof(query_response))
+   {
+      TBUG("invalid query_response len=%d: %s\n", len, libusb_error_name(len));
+      goto bugout;
+   }
+
+   fprintf(stdout, "query_response (End) len=%d trip=%d state=%x steps=%d\n", len,
+           query_response.trip_cnt, query_response.state_bits._word, query_response.step);
+
+   release_interface(&fd_table);
+
+//   if (query_response.step != sizeof(buf) || query_response.state_bits._word & STEP_STATE_STALL_BIT)
+   if (query_response.step != sizeof(buf))
+   {
+      fprintf(stderr, "USB test failed.\n");
+      fprintf(stderr, "  Suggestions in order:\n");
+      fprintf(stderr, "     1. Remove any hubs, plug directly into PC.\n");
+      fprintf(stderr, "     2. Try a certified HIGH-SPEED or USB 2.0 cable.\n");
+      fprintf(stderr, "     3. Try a different USB port directly into PC.\n");
+      fprintf(stderr, "     4. Kill all extraneous resource intensive Applications.\n");
+      fprintf(stderr, "     5. Try running in a TTY terminal without Gnome or KDE.\n");
+      fprintf(stderr, "     6. Try a different PC. Your USB subsytem may not support rt-stepper\n");
+      ret = 1;
+   }
+   else
+   {
+      fprintf(stdout, "USB test passed.\n");
+      ret = EMC_R_OK;
+   }
+
+ bugout:
+   return ret;
+}

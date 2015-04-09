@@ -82,7 +82,10 @@ class EmcMech(object):
 
    def __init__(self):
       try:
-         self.LIBRARY_FILE = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), Version.dll)
+         if (os.path.dirname(Version.dll) == ""):
+            self.LIBRARY_FILE = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), Version.dll)
+         else:
+            self.LIBRARY_FILE = os.path.realpath(Version.dll)
          self.lib = cdll.LoadLibrary(self.LIBRARY_FILE)
 
          # void *emc_ui_open(const char *ini_file)
@@ -179,10 +182,15 @@ class EmcMech(object):
          self._verify_cmd.argtypes = [c_void_p, c_char_p]
          self._verify_cmd.restype = c_int
 
-         # enum EMC_RESULT dsp_verify_cancel(struct emc_session *ps);
+         # enum EMC_RESULT emc_ui_verify_cancel(void *hd)
          self._verify_cancel = self.lib.emc_ui_verify_cancel
          self._verify_cancel.argtypes = [c_void_p]
          self._verify_cancel.restype= c_int
+
+         # enum EMC_RESULT emc_ui_test(const char *snum)
+         self._test = self.lib.emc_ui_test
+         self._test.argtypes = [c_char_p]
+         self._test.restype = c_int
 
       except AttributeError as err:
          logging.info("unable to load library: %s %s" % (self.LIBRARY_FILE, err))
@@ -193,7 +201,7 @@ class EmcMech(object):
 
    ################################################################################################################
    def call_plugin_cb(self, mcode, p_num, q_num):
-      module = "plugin/m%d" % (mcode)
+      module = os.path.realpath("%s/m%d" % (Version.plugin, mcode))
       f, filename, description = imp.find_module(module)
       try:
          plugin = imp.load_module(module, f, filename, description)
@@ -270,6 +278,10 @@ class EmcMech(object):
    #############################################################################################################
    def enable_din_abort(self, input_num):
       return self._enable_din_abort(self.hd, input_num)
+
+   #############################################################################################################
+   def test(self, snum):
+      return self._test(snum.encode('ascii'))
 
    #############################################################################################################
    def get_version(self):

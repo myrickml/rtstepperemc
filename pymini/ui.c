@@ -532,6 +532,11 @@ DLL_EXPORT enum EMC_RESULT emc_ui_disable_din_abort(void *hd, int input_num)
    return dsp_disable_din_abort(ps, input_num);
 }       /*  emc_ui_disable_din_abort() */
 
+DLL_EXPORT enum EMC_RESULT emc_ui_test(const char *snum)
+{
+   return rtstepper_test(snum);
+}
+
 DLL_EXPORT void *emc_ui_open(const char *ini_file)
 {
    struct emc_session *ret = NULL, *ps = &session;
