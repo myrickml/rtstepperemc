@@ -69,7 +69,7 @@ struct post_position_py
    struct emcpose_py pos;
 };
 
-const char *USER_HOME_DIR;
+char USER_HOME_DIR[LINELEN];
 
 static logger_cb_t _logger_cb = NULL;
 static post_event_cb_t _post_event_cb = NULL;
@@ -133,7 +133,9 @@ static enum EMC_RESULT _load_tool_table(const char *filename, struct CANON_TOOL_
    char comment[CANON_TOOL_ENTRY_LEN];
    char path[LINELEN];
 
-   snprintf(path, sizeof(path), "%s/.%s/%s", USER_HOME_DIR, PACKAGE_NAME, filename);
+   snprintf(path, sizeof(path), "%s/%s", USER_HOME_DIR, filename);
+
+   MSG("Loading tool table: %s\n", path);
 
    // open tool table file
    if (NULL == (fp = fopen(path, "r")))
@@ -158,6 +160,9 @@ static enum EMC_RESULT _load_tool_table(const char *filename, struct CANON_TOOL_
       // for nonrandom machines, just read the tools into pockets 1..n
       // no matter their tool numbers.  NB leave the spindle pocket 0
       // unchanged/empty.
+ 
+      if (buf[0] == '#')
+         continue;
 
       if ((scanned = sscanf(buf, "%d %d %lf %lf %[^\n]", &toolno, &pocket, &zoffset, &diameter, comment)) && (scanned == 4 || scanned == 5))
       {
@@ -537,7 +542,7 @@ DLL_EXPORT enum EMC_RESULT emc_ui_test(const char *snum)
    return rtstepper_test(snum);
 }
 
-DLL_EXPORT void *emc_ui_open(const char *ini_file)
+DLL_EXPORT void *emc_ui_open(const char *home, const char *ini_file)
 {
    struct emc_session *ret = NULL, *ps = &session;
    char inistring[LINELEN];
@@ -545,8 +550,8 @@ DLL_EXPORT void *emc_ui_open(const char *ini_file)
 
    DBG("[%d] emc_ui_open() ini=%s\n", getpid(), ini_file);
 
-   if ((USER_HOME_DIR = getenv("HOME")) == NULL)
-      USER_HOME_DIR = "";       /* no $HOME directory, default to top level */
+   strncpy(USER_HOME_DIR, home, sizeof(USER_HOME_DIR));
+   USER_HOME_DIR[sizeof(USER_HOME_DIR)-1] = 0;  /* force zero termination */
 
    strncpy(ps->ini_file, ini_file, sizeof(ps->ini_file));
    ps->ini_file[sizeof(ps->ini_file)-1] = 0;  /* force zero termination */

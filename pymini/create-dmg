@@ -158,9 +158,9 @@ fi
 
 if ! test -z "$SRC_FOLDER/Contents/MacOS/rt-test"; then
   echo "making rtstepper links"
-  ln -s ./pymini.app/Contents/MacOS/rt-test "$MOUNT_DIR/rt-test"
-  ln -s ./pymini.app/Contents/Resources/rtstepper.ini "$MOUNT_DIR/rtstepper.ini"
-  #ln -s ./pymini.app/Contents/Resources/doc/ers.html "$MOUNT_DIR/ers"
+  ln -s ./pymini.app/Contents/MacOS/rt-test.py "$MOUNT_DIR/rt-test"
+  ln -s ./pymini.app/Contents/MacOS/rtstepper.ini "$MOUNT_DIR/rtstepper.ini"
+  ln -s ./pymini.app/Contents/Resources/doc/pymini.html "$MOUNT_DIR/documentation"
 fi  
 
 # run applescript

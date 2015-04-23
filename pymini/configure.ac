@@ -19,7 +19,7 @@
 #     or
 #
 #     ./configure --host i586-mingw32msvc (Ubuntu 9.04)
-#     ./configure --host=i686-w64-mingw32 LDFLAGS="-L/usr/i686-w64-mingw32/lib" (Ubuntu 12.04 32-bit)
+#     ./configure --host=i686-w64-mingw32 LDFLAGS="-L/usr/i686-w64-mingw32/lib" CFLAGS=-I/usr/i686-w64-mingw32/include/libusb-1.0 CXXFLAGS=-I/usr/i686-w64-mingw32/include/libusb-1.0 (Ubuntu 12.04 32-bit)
 #     ./configure --host=x86_64-w64-mingw32 LDFLAGS="-L/usr/x86_64-w64-mingw32/lib" CFLAGS=-I/usr/x86_64-w64-mingw32/include/libusb-1.0 CXXFLAGS=-I/usr/x86_64-w64-mingw32/include/libusb-1.0 (Ubuntu 12.04 64-bit)
 #
 #     make
@@ -78,10 +78,11 @@
 # Version 0.64, des 03/15/2015    Added Verify support.
 # Version 0.65, des 03/16/2015    Made Mac OSX compatable gui changes.
 # Version 0.69, des 03/25/2015    Added an icon. Fixed a step pulse bug in rtstepper_start_xfr().
-# Version 0.70, des 04/03/2015    Initial cx_freeze support.
 # Version 0.74, des 04/08/2015    Added binary support (dmg) for Mac OSX 10.9. 
+# Version 0.78, des 04/15/2015    Added binary support for Windows 7 and 8. Added pymini.html documentation.
+# Version 1.0,  des 04/22/2015    Public release.
 
-AC_INIT([pymini], [0.74])
+AC_INIT([pymini], [1.0])
 AC_CANONICAL_HOST
 
 # Checks for programs.
@@ -176,6 +177,9 @@ if test "$mingw_build" = "yes"; then
    fi
 elif test "$darwin_build" = "yes"; then
    dll_extension="dylib"
+   AC_MSG_CHECKING([for osx version])
+   osx_version=`sw_vers -productVersion`
+   AC_MSG_RESULT($osx_version)
 else
    dll_extension="so"
    CFLAGS="$CFLAGS -fPIC"
@@ -210,6 +214,7 @@ AC_SUBST(mingw_build)
 AC_SUBST(mini_build)
 AC_SUBST(darwin_build)
 AC_SUBST(linux_build)
+AC_SUBST(osx_version)
 
 AC_CONFIG_FILES(Makefile)
 AC_OUTPUT

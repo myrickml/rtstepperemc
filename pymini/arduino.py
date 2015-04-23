@@ -31,15 +31,19 @@
 # For serial port permissions on Ubuntu the User must belong to 'dialout' group (adduser username dialout).
 #
 
-import serial
 import time
-from serial.tools import list_ports
+try:
+   import serial
+   from serial.tools import list_ports
+except ImportError:
+   connected = False
+
+connected = False      # Set to True if using Arduino Uno for IO.
 
 #UNO_VID = "1a86"      # Set to USB Uno board vendor number
 #UNO_PID = "7523"      # Set to USB Uno board product number
 UNO_VID = "2341"       # Set to USB Uno board vendor number
 UNO_PID = "0001"       # Set to USB Uno board product number
-connected = False      # Set to True if using Arduino Uno for IO.
 
 inited = False         # usb serial port opened: False = no, True = yes
 uno = None             # serial port instance

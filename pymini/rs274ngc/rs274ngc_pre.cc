@@ -1414,12 +1414,12 @@ int Interp::ini_load(const char *filename)
    if (iniGetKeyValue("RS274NGC", "PARAMETER_FILE", inistring, sizeof(inistring)) > 0)
    {
       // found it
-      snprintf(RS274NGC_PARAMETER_FILE, sizeof(RS274NGC_PARAMETER_FILE), "%s/.%s/%s", USER_HOME_DIR, PACKAGE_NAME, inistring);
+      snprintf(RS274NGC_PARAMETER_FILE, sizeof(RS274NGC_PARAMETER_FILE), "%s/%s", USER_HOME_DIR, inistring);
    } 
    else 
    {
       // not found, leave RS274NGC_PARAMETER_FILE alone
-      BUG("unable to find PARAMETER_FILE in %s/.%s/%s\n", USER_HOME_DIR, PACKAGE_NAME, filename);
+      BUG("unable to find PARAMETER_FILE in %s/%s\n", USER_HOME_DIR, filename);
    }
 
    return 0;

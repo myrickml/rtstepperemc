@@ -335,7 +335,7 @@ typedef void *(*post_position_cb_t) (int cmd, struct post_position_py *pospy);
 typedef void *(*post_event_cb_t) (int cmd);
 typedef void *(*plugin_cb_t) (int mcode, double p_number, double q_number);
 
-extern const char *USER_HOME_DIR;
+extern char USER_HOME_DIR[];
 extern struct emc_session session;
 
 /* Forward declarations. */
@@ -351,7 +351,7 @@ extern "C"
    enum EMC_RESULT emc_post_position_cb(int id, EmcPose pos);
    enum EMC_RESULT emc_post_estop_cb(struct emc_session *ps);
    enum EMC_RESULT emc_post_paused_cb(struct emc_session *ps);
-   DLL_EXPORT void *emc_ui_open(const char *ini_file);
+   DLL_EXPORT void *emc_ui_open(const char *home, const char *ini_file);
    DLL_EXPORT enum EMC_RESULT emc_ui_close(void *hd);
    DLL_EXPORT enum EMC_RESULT emc_ui_estop(void *hd);
    DLL_EXPORT enum EMC_RESULT emc_ui_estop_reset(void *hd);

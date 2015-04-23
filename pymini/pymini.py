@@ -108,7 +108,7 @@ class MechEvent(object):
    CMD_VERIFY = 5
 
 def usage():
-   print("%s %s %s, GUI for rtstepperemc library" % (Version.name, Version.release, Version.date))
+   print("%s %s %s, rt-stepper dongle application software" % (Version.name, Version.release, Version.date))
    print("(c) 2013-2015 Copyright Eckler Software")
    print("David Suffield, dsuffiel@ecklersoft.com")
    print("usage: %s [-i your_file.ini] (default=rtstepper.ini)" % (Version.name))
@@ -261,8 +261,7 @@ class Gui(tkinter.Tk):
       self.dog.register_event_cb(self.guiq)
 
       # Open dll.
-      logging.info("Opening %s %s" % (self.dog.LIBRARY_FILE, self.dog.get_version()))
-      self.dog.open(IniFile.name)
+      self.dog.open(HOME_DIR, IniFile.name)
 
       # Kickoff mech thread().
       self.mech = Mech(self.cfg, self.guiq, self.mechq, self.dog)
@@ -815,6 +814,7 @@ class Gui(tkinter.Tk):
       if (not os.path.exists(table)):
          # Create a default tool table with zero offsets.
          with open(table, 'w') as f:
+            f.write("# toolnum  pocket  length  diameter  comment")
             f.write("\n")
             for i in range(1, 11):
                f.write("%d   %d   0.0   0.0   empty\n" % (i, i))

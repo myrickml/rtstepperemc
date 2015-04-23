@@ -27,7 +27,7 @@
 
 import os, sys, logging
 from ctypes import cdll, c_int, c_char_p, c_void_p, c_double, c_long, c_void_p, byref, cast, Structure, POINTER, CFUNCTYPE
-import imp
+import sys, importlib
 from version import Version 
 
 class MechResult(object):
@@ -86,11 +86,12 @@ class EmcMech(object):
             self.LIBRARY_FILE = os.path.join(os.path.dirname(os.path.realpath(sys.argv[0])), Version.dll)
          else:
             self.LIBRARY_FILE = os.path.realpath(Version.dll)
+         logging.info("Loading library: %s" % (self.LIBRARY_FILE))
          self.lib = cdll.LoadLibrary(self.LIBRARY_FILE)
 
-         # void *emc_ui_open(const char *ini_file)
+         # void *emc_ui_open(const char *home, const char *ini_file)
          self._open = self.lib.emc_ui_open
-         self._open.argtypes = [c_char_p]
+         self._open.argtypes = [c_char_p, c_char_p]
          self._open.restype = c_void_p
 
          # enum EMC_RESULT emc_ui_close(void *hd)
@@ -192,8 +193,8 @@ class EmcMech(object):
          self._test.argtypes = [c_char_p]
          self._test.restype = c_int
 
-      except AttributeError as err:
-         logging.info("unable to load library: %s %s" % (self.LIBRARY_FILE, err))
+      except Exception as err:
+         logging.error("unable to load library: %s %s" % (self.LIBRARY_FILE, err))
 
    ################################################################################################################
    def call_logger_cb(self, msg):
@@ -201,13 +202,12 @@ class EmcMech(object):
 
    ################################################################################################################
    def call_plugin_cb(self, mcode, p_num, q_num):
-      module = os.path.realpath("%s/m%d" % (Version.plugin, mcode))
-      f, filename, description = imp.find_module(module)
+      module = "plugin.m%d" % (mcode)
       try:
-         plugin = imp.load_module(module, f, filename, description)
-         plugin.run(self, p_num, q_num)
-      finally:
-         f.close()
+          plugin = importlib.import_module(module)
+          plugin.run(self, p_num, q_num)
+      except Exception as err:
+         logging.error("unable to load: %s.py %s" % (module, err))
 
    ################################################################################################################
    def post_gui_event_cb(self, cmd):
@@ -314,8 +314,8 @@ class EmcMech(object):
       return self._register_position_cb(self.cb_position)
 
    ################################################################################################################
-   def open(self, ini_file="rtstepper.ini"):
-      self.hd = self._open(ini_file.encode('ascii'))
+   def open(self, home_dir, ini_file="rtstepper.ini"):
+      self.hd = self._open(home_dir.encode('ascii'), ini_file.encode('ascii'))
 
    #############################################################################################################
    def close(self):

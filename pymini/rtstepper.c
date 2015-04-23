@@ -39,6 +39,12 @@
 #include "emc.h"
 #include "bug.h"
 
+#if (defined(__WIN32__) || defined(_WINDOWS))
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#define sleep(n) Sleep(1000 * n)
+#endif
+
 #define DONGLE_VENDOR_ID 0x04d8
 #define DONGLE_PRODUCT_ID 0xff45
 #define DONGLE_INTERFACE 0
@@ -84,8 +90,6 @@ struct __attribute__ ((packed)) step_query
    unsigned char trip_cnt;      /* stall trip count */
    uint32_t step;               /* running step count */
 };
-
-extern const char *USER_HOME_DIR;
 
 static enum EMC_RESULT start_xfr(struct rtstepper_io_req *io);
 
