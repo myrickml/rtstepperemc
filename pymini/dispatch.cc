@@ -263,6 +263,7 @@ static enum EMC_RESULT _dsp_interp_verify(struct emc_session *ps, emc_command_ms
    case EMC_TRAJ_LINEAR_MOVE_TYPE:
       {
          emc_traj_linear_move_msg_t *p = (emc_traj_linear_move_msg_t *)cmd;
+         DBG("L line=%d x_pos=%0.5f, y_pos=%0.5f, z_pos=%0.5f\n", id, p->end.tran.x, p->end.tran.y, p->end.tran.z);
          emc_post_position_cb(id, p->end);
          stat = EMC_R_OK;
       }
@@ -270,6 +271,7 @@ static enum EMC_RESULT _dsp_interp_verify(struct emc_session *ps, emc_command_ms
    case EMC_TRAJ_CIRCULAR_MOVE_TYPE:
       {
          emc_traj_circular_move_msg_t *p = (emc_traj_circular_move_msg_t *)cmd;
+         DBG("C line=%d x_pos=%0.5f, y_pos=%0.5f, z_pos=%0.5f\n", id, p->end.tran.x, p->end.tran.y, p->end.tran.z);
          emc_post_position_cb(id, p->end);
          stat = EMC_R_OK;
       }
@@ -378,6 +380,8 @@ enum EMC_RESULT dsp_auto(struct emc_session *ps, const char *gcodefile)
          goto bugout;
       }
 
+      rtstepper_xfr_hysteresis(ps);
+
       retval = interp.execute(line, ps->line_number);
       if (retval > INTERP_MIN_ERROR)
       {
@@ -467,7 +471,8 @@ enum EMC_RESULT dsp_verify(struct emc_session *ps, const char *gcodefile)
             }
 
             /* Do small delay so we don't overrun the gui with position updates. */
-            esleep(0.02);
+            //esleep(0.02);
+            esleep(0.1);
 
             len--;
          }

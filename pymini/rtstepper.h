@@ -71,6 +71,10 @@ struct rtstepper_file_descriptor
 #define RTSTEPPER_MECH_THREAD 1
 #define RTSTEPPER_DONGLE_THREAD 0
 
+/* IO request hysteresis set points. */
+#define RTSTEPPER_REQ_MAX  100
+#define RTSTEPPER_REQ_MIN  50
+
 /* Forward declarations. */
 struct emc_session;
 
@@ -89,6 +93,7 @@ extern "C"
    enum EMC_RESULT rtstepper_encode(struct emc_session *ps, struct rtstepper_io_req *io, double index[]);
    enum EMC_RESULT rtstepper_start_xfr(struct emc_session *ps, struct rtstepper_io_req *io, EmcPose pos);
    enum EMC_RESULT rtstepper_wait_xfr(struct emc_session *ps);
+   enum EMC_RESULT rtstepper_xfr_hysteresis(struct emc_session *ps);
    int rtstepper_is_connected(struct emc_session *ps);
    enum EMC_RESULT rtstepper_is_input0_triggered(struct emc_session *ps);
    enum EMC_RESULT rtstepper_is_input1_triggered(struct emc_session *ps);

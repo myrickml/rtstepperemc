@@ -153,6 +153,7 @@ struct emc_session
    TC_STRUCT tc_queue[DEFAULT_TC_QUEUE_SIZE + 10]; /* discriminate-based trajectory planning */
 
    /* rtstepper dongle */
+   int req_cnt;                 /* number of queued usb io requests */
    struct rtstepper_io_req head;
    struct rtstepper_file_descriptor fd_table;
    char serial_num[64];         /* dongle usb serial number */

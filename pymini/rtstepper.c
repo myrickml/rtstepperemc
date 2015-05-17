@@ -341,6 +341,8 @@ static void cancel_xfr(struct emc_session *ps)
       free(io);
    }
 
+   ps->req_cnt = 0;
+
    pthread_mutex_unlock(&_mutex);
 } /* cancel_xfr() */
 
@@ -453,6 +455,7 @@ static void xfr_cb(struct libusb_transfer *transfer)
    free(io->buf);
    list_del(&io->list);
    free(io);
+   ps->req_cnt--;
    empty = list_empty(&ps->head.list);
 
    pthread_mutex_unlock(&_mutex);
@@ -545,6 +548,7 @@ enum EMC_RESULT rtstepper_start_xfr(struct emc_session *ps, struct rtstepper_io_
 
    /* Add io request to tail of the queue (FIFO). */
    list_add_tail(&io->list, &ps->head.list);
+   ps->req_cnt++;
 
    pthread_mutex_unlock(&_mutex);
 
@@ -559,6 +563,35 @@ enum EMC_RESULT rtstepper_start_xfr(struct emc_session *ps, struct rtstepper_io_
  bugout:
    return stat;
 }       /* rtstepper_start_xfr() */
+
+/* Apply xfr hysteresis. */
+enum EMC_RESULT rtstepper_xfr_hysteresis(struct emc_session *ps)
+{
+   struct timeval tv;
+   struct timespec ts;
+   int rc;
+
+   if (ps->req_cnt > RTSTEPPER_REQ_MAX)
+   {
+      DBG("rstepper_xfr_hysteresis() start...\n");
+
+      /* Wait until IOs fall below minimum set point. */
+      do
+      {
+	 gettimeofday(&tv, NULL);
+	 ts.tv_sec = tv.tv_sec + 2;    /* 2 sec timeout */
+	 ts.tv_nsec = 0;
+	 rc=0;
+	 pthread_mutex_lock(&_mutex);
+	 while (ps->req_cnt > RTSTEPPER_REQ_MIN && (ps->state_bits & EMC_STATE_ESTOP_BIT)==0 && rc==0)
+	    rc = pthread_cond_timedwait(&_write_done_cond, &_mutex, &ts);
+	 pthread_mutex_unlock(&_mutex);
+      } while (rc == ETIMEDOUT);
+
+      DBG("rstepper_xfr_hysteresis() done...\n");
+   }
+   return EMC_R_OK;
+}
 
 enum EMC_RESULT rtstepper_wait_xfr(struct emc_session *ps)
 {
