@@ -403,6 +403,11 @@ enum EMC_RESULT dsp_auto(struct emc_session *ps, const char *gcodefile)
                {
                   /* Program is paused (M0, M1 or M60). */
                   emc_post_paused_cb(ps);
+
+                  /* Update the display with the mcode line number. */
+                  emc_post_position_cb(ps->line_number, ps->position); 
+
+                  ps->line_number++;
                   return stat;
                }
                else

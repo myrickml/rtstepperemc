@@ -87,7 +87,7 @@ class GuiEvent(object):
    MECH_DEFAULT = 3
    MECH_POSITION = 4
    MECH_ESTOP = 5  # auto estop from mech
-   MECH_PAUSED = 6  # M0, M1 or M60
+   MECH_PAUSED = 6  # M0, M1 or M60 from parser
 
 class ButtonState(object):
    # estop, home, jog, mdi, run, resume, verify
@@ -96,7 +96,8 @@ class ButtonState(object):
    BUSY   = [ 1, 0, 0, 0, 0, 0, 0 ]
    BUSY2  = [ 0, 0, 0, 0, 0, 0, 0 ]
    IDLE   = [ 1, 1, 1, 1, 1, 0, 0 ]
-   RESUME = [ 1, 0, 0, 0, 1, 0, 0 ]
+   RESUME = [ 1, 0, 0, 0, 0, 1, 0 ]
+   RESUME2 =[ 1, 0, 0, 0, 0, 2, 0 ]
    VERIFY = [ 0, 0, 0, 0, 0, 0, 2 ]
 
 class MechEvent(object):
@@ -286,7 +287,7 @@ class Gui(tkinter.Tk):
          elif (e['id'] == GuiEvent.MECH_ESTOP):
             self.set_estop_state()  # auto estop from mech
          elif (e['id'] == GuiEvent.MECH_PAUSED):
-            self.set_idle_state(tkinter.DISABLED, resume=tkinter.ACTIVE)
+            self.set_idle_state(ButtonState.RESUME)  # auto pause from parser
          else:
             logging.info("unable to process gui event %d\n" % (e['id']))
          e = None
@@ -582,7 +583,7 @@ class Gui(tkinter.Tk):
          self.mdi_button3.config(state=tkinter.DISABLED)
          self.mdi_button4.config(state=tkinter.DISABLED)
 
-      if (flag[5]):
+      if (flag[5] == 1):
          self.resume_button.config(state=tkinter.ACTIVE)
       else:
          self.resume_button.config(state=tkinter.DISABLED)
@@ -596,7 +597,7 @@ class Gui(tkinter.Tk):
 
       if (self.dog.get_state() & MechStateBit.ESTOP):
          self.led_button.config(image=self.red_led)
-      elif (self.dog.get_state() & MechStateBit.PAUSED):
+      elif ((self.dog.get_state() & MechStateBit.PAUSED) and (not flag[5] == 2)):
          self.led_button.config(image=self.orange_led)
       else:
          self.led_button.config(image=self.green_led)
@@ -695,7 +696,7 @@ class Gui(tkinter.Tk):
 
    #=======================================================================
    def resume(self):
-      self.set_idle_state(ButtonState.BUSY)
+      self.set_idle_state(ButtonState.RESUME2)
       m = {}
       m['id'] = MechEvent.CMD_RUN
       m['file'] = "paused"

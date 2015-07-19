@@ -82,8 +82,9 @@
 # Version 0.78, des 04/15/2015    Added binary support for Windows 7 and 8. Added pymini.html documentation.
 # Version 1.0,  des 04/22/2015    Public release.
 # Version 1.1,  des 05/16/2015    Added USB IO hysteresis. This fixes a malloc error for PCs with low memory.
+# Version 1.2,  des 07/16/2015    Fixed the broken M0/M1/M60 pause functionality.
 
-AC_INIT([pymini], [1.1])
+AC_INIT([pymini], [1.2])
 AC_CANONICAL_HOST
 
 # Checks for programs.

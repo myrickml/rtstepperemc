@@ -256,7 +256,6 @@ win_freeze:
 	$(INSTALL) $(mingw_path)/libstdc++-6.dll $(PACKAGE)-$(VERSION)-$(bin_name)
 	$(INSTALL_SCRIPT) $(dist_MINI_SCRIPTS) $(PACKAGE)-$(VERSION)-$(bin_name)
 	$(INSTALL_SCRIPT) version.py $(PACKAGE)-$(VERSION)-$(bin_name)
-	$(INSTALL_SCRIPT) setup.py $(PACKAGE)-$(VERSION)-$(bin_name)
 	$(mkinstalldirs)  $(PACKAGE)-$(VERSION)-$(bin_name)/plugin
 	$(INSTALL_SCRIPT) $(dist_PLUGIN_SCRIPTS) $(PACKAGE)-$(VERSION)-$(bin_name)/plugin
 	$(INSTALL_DATA) $(dist_CONF_DATA) $(PACKAGE)-$(VERSION)-$(bin_name)
